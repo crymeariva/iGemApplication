@@ -24,8 +24,9 @@ const int dirAPin  = 13; // change if different
 
 /*  Motor timing  */
 const int pulseWidthMicros = 100;   // step pulse width
-const int millisBtwnSteps  = 1000;  // delay between steps (µs)
 
+const int DELAY_SLOW_MICROS = 1000; // slow
+const int DELAY_FAST_MICROS = 500; // fast, open for change
 
 
 /*  Command queue  */
@@ -35,6 +36,7 @@ struct MotorCommand {
   char axis;       // X/Y/Z/A
   bool direction;  // true = down, false = up
   int steps;       // Testing todo to get rough amount to syringe measure's
+  int stepDelayUs; // per-command delay
 };
 
 MotorCommand commandQueue[QUEUE_SIZE];
@@ -52,9 +54,9 @@ volatile bool cancelRequested = false;
 bool queueIsEmpty() { return queueHead == queueTail; }
 bool queueIsFull() { return ((queueTail + 1) % QUEUE_SIZE) == queueHead; }
 
-bool enqueueCommand(char axis, bool direction, int steps) {
+bool enqueueCommand(char axis, bool direction, int steps, int stepDelayUs) {
   if (queueIsFull()) return false;
-  commandQueue[queueTail] = {axis, direction, steps};
+  commandQueue[queueTail] = {axis, direction, steps, stepDelayUs};
   queueTail = (queueTail + 1) % QUEUE_SIZE;
   return true;
 }
@@ -137,7 +139,7 @@ void loop() {
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(pulseWidthMicros);
     digitalWrite(stepPin, LOW);
-    delayMicroseconds(millisBtwnSteps);
+    delayMicroseconds(currentCmd.stepDelayUs);
     stepsRemaining--;
   }
 
@@ -167,8 +169,25 @@ void receiveData(int howMany) {
   int secondSpace = received.indexOf(' ', firstSpace + 1);
   if (firstSpace == -1 || secondSpace == -1) return;
 
+  int thirdSpace = received.indexOf(' ', secondSpace + 1);
+
   String dirStr = received.substring(firstSpace + 1, secondSpace);
-  String stepsStr = received.substring(secondSpace + 1);
+  String stepsStr;
+  char speedChar = 'S';  // default slow
+
+  if (thirdSpace == -1) {
+    stepsStr = received.substring(secondSpace + 1);
+  } else {
+    stepsStr = received.substring(secondSpace + 1, thirdSpace);
+    String speedStr = received.substring(thirdSpace + 1);
+    speedStr.trim();
+    if (speedStr.length() > 0) {
+      speedChar = speedStr.charAt(0);
+      if (speedChar == 'f') speedChar = 'F';
+      if (speedChar == 's') speedChar = 'S';
+    }
+  }
+
   int steps = stepsStr.toInt();
   if (steps <= 0) return;
 
@@ -177,5 +196,6 @@ void receiveData(int howMany) {
   else if (dirStr == "up") direction = false;
   else return;
 
-  enqueueCommand(axis, direction, steps);
+  int stepDelayUs = (speedChar == 'F') ? DELAY_FAST_MICROS : DELAY_SLOW_MICROS;
+  enqueueCommand(axis, direction, steps, stepDelayUs);
 }

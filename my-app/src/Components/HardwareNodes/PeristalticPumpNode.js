@@ -151,7 +151,7 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
                             min={0.1}
                             step={0.1}
                             onChange={handleRotationsChange}
-                            placeholder="1"
+                            placeholder="x"
                         />
                     </div>
                     <div className="setting-item">
@@ -197,12 +197,12 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
                     <div className="setting-item">
                         <span className="setting-key">Speed:</span>
                         <select
-                        className="setting-select"
-                        value={speedVal}
-                        onChange={handleSpeedChange}
+                            className="setting-select"
+                            value={speedVal}
+                            onChange={handleSpeedChange}
                         >
                             <option value="S">Slow</option>
-                            <option value="F">Fast</option>                            
+                            <option value="F">Fast</option>
                         </select>
                     </div>
                 </div>
