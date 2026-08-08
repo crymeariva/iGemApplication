@@ -24,21 +24,23 @@ import { useCycleSave } from './hooks/useCycleSave';
 import { useCycleLoader } from './hooks/useCycleLoader';
 import { useCycleDelete } from './hooks/useCycleDelete';
 
-/** Node types Send All can run in v1 (expand later). */
 const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump']);
-const PERISTALTIC_STEPS = 1000;
+const PERI_STEPS_PER_ROTATION = 200;
 const INTER_NODE_DELAY_MS = 3000; // Gonna have to change this / remove entirely to implement a 'finish then next'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Same payload shape as the node Send Instruction buttons.
- */
+function periRotationsToSteps(rotations) {
+  const n = Number(rotations);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * PERI_STEPS_PER_ROTATION);
+}
+
 function buildNodePayload(node) {
   const settings = node.data?.settings ?? {};
   const steps =
     node.type === 'peristalticPump'
-      ? PERISTALTIC_STEPS
+      ? periRotationsToSteps(settings.rotations)
       : Number(settings.steps);
 
   return {
@@ -48,13 +50,11 @@ function buildNodePayload(node) {
     compInstr: {
       steps,
       Direction: settings.direction,
+      Speed: settings.speed || 'S',
     },
   };
 }
 
-/**
- * Validates runnable nodes form a single chain and returns them in run order.
- */
 function getNodeOrder(nodes, edges) {
   const runnable = nodes.filter((n) => RUNNABLE_TYPES.has(n.type));
 
@@ -401,6 +401,11 @@ function App() {
 
       if (node.type === 'syringePump' && !settings.steps) {
         alert(`Missing steps on "${label}".`);
+        return;
+      }
+
+      if (node.type === 'peristalticPump' && !periRotationsToSteps(settings.rotations)) {
+        alert(`Missing or invalid rotations on "${label}".`);
         return;
       }
     }

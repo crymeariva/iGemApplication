@@ -2,13 +2,13 @@ import { memo, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import './HardwareNode.css';
 
-// open to change
-const STEPS = 1000;
-
-// maybe also consider doing something about the forward / reverse instruction?
-// currently only changed on the UI side of things to make more sense for the user
+const STEPS_PER_ROTATION = 200;
 
 const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
+    const [rotations, setRotations] = useState(
+        data.settings?.rotations ?? ''
+    );
+
     const [boardVal, setBoard] = useState(
         data.settings?.boardVal || ''
     );
@@ -21,7 +21,15 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
         data.settings?.direction || ''
     );
 
+    const [speedVal, setSpeed] = useState(
+        data.settings?.speed || 'S'
+    );
+
     const [message, setMessage] = useState("");
+
+    useEffect(() => {
+        setRotations(data.settings?.rotations ?? '');
+    }, [data.settings?.rotations]);
 
     useEffect(() => {
         setBoard(data.settings?.boardVal ?? '');
@@ -34,6 +42,12 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
     useEffect(() => {
         setDirection(data.settings?.direction ?? '');
     }, [data.settings?.direction]);
+
+    useEffect(() => {
+        setSpeed(data.settings?.speed ?? 'S');
+    }, [data.settings?.speed]);
+
+    const steps = Math.round(Number(rotations) * STEPS_PER_ROTATION);
 
     const CallBackend = async (payload) => {
         try {
@@ -69,6 +83,13 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
         }
     };
 
+    const handleRotationsChange = (e) => {
+        setRotations(e.target.value);
+        if (data.onSettingsChange) {
+            data.onSettingsChange({ rotations: e.target.value });
+        }
+    };
+
     const handleBoardChange = (e) => {
         setBoard(e.target.value);
         if (data.onSettingsChange) {
@@ -87,6 +108,13 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
         setDirection(e.target.value);
         if (data.onSettingsChange) {
             data.onSettingsChange({ direction: e.target.value });
+        }
+    };
+
+    const handleSpeedChange = (e) => {
+        setSpeed(e.target.value);
+        if (data.onSettingsChange) {
+            data.onSettingsChange({ speed: e.target.value });
         }
     };
 
@@ -114,6 +142,18 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
                 </div>
 
                 <div className="hardware-node-settings">
+                    <div className="setting-item">
+                        <span className="setting-key">Rotations:</span>
+                        <input
+                            type="number"
+                            className="setting-input"
+                            value={rotations}
+                            min={0.1}
+                            step={0.1}
+                            onChange={handleRotationsChange}
+                            placeholder="1"
+                        />
+                    </div>
                     <div className="setting-item">
                         <span className="setting-key">Board (1-4):</span>
                         <select
@@ -150,8 +190,19 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
                             onChange={handleDirectionChange}
                         >
                             <option value="">Select</option>
-                            <option value="up">Forward</option> 
+                            <option value="up">Forward</option>
                             <option value="down">Reverse</option>
+                        </select>
+                    </div>
+                    <div className="setting-item">
+                        <span className="setting-key">Speed:</span>
+                        <select
+                        className="setting-select"
+                        value={speedVal}
+                        onChange={handleSpeedChange}
+                        >
+                            <option value="S">Slow</option>
+                            <option value="F">Fast</option>                            
                         </select>
                     </div>
                 </div>
@@ -160,12 +211,13 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
             <div className="node-actions">
                 <button
                     className="node-action-btn"
+                    disabled={!steps}
                     onClick={() =>
                         CallBackend({
                             type: "Motor",
                             axis: axisVal,
                             board: Number(boardVal),
-                            compInstr: { steps: STEPS, Direction: directionVal }
+                            compInstr: { steps, Direction: directionVal, Speed: speedVal || 'S' }
                         })
                     }
                 >

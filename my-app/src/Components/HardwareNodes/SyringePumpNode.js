@@ -166,15 +166,15 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
             </select>
           </div>
           <div className="setting-item">
-            <span className="setting-key">Direction (up, down):</span>
+            <span className="setting-key">Dispense / Aspirate:</span>
             <select
               className="setting-select"
               value={directionVal}
               onChange={handleDirectionChange}
             >
               <option value="">Select</option>
-              <option value="up">up</option>
-              <option value="down">down</option>
+              <option value="up">Dispense</option>
+              <option value="down">Aspirate</option>
             </select>
           </div>
         </div>

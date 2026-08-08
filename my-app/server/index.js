@@ -49,6 +49,7 @@ app.post("/api/instr", (req, res) => {
 
   const direction = compInstr?.Direction?.toLowerCase();
   const distance = compInstr?.steps;
+  const speed = String(compInstr?.Speed ?? 'S').toUpperCase();
 
   // Validate axis
   if (!["X", "Y", "Z", "A"].includes(axis)) {
@@ -65,10 +66,15 @@ app.post("/api/instr", (req, res) => {
     return res.status(400).json({ error: "Board must be integer 0–7" });
   }
 
+  // Validate speed
+  if (!['S', 'F'].includes(speed)) {
+    return res.status(400).json({ error: "Speed must be F (Fast) or S (Slow)" });
+  }
+
   const bits = to3BitArray(board);
   writeBits(bits);
 
-  const message = `${axis} ${direction} ${distance}`;
+  const message = `${axis} ${direction} ${distance} ${speed}`;
 
   // Convert string to byte array (same as Python ord())
   const bytes = Buffer.from(message, "utf-8");
