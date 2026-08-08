@@ -113,7 +113,9 @@ void setup() {
 
 /*  Main loop  */
 void loop() {
-  delay(10); //We can speed this up later
+  if (!busy) {
+    delay(10); //We can speed this up later
+  }
 
   static MotorCommand currentCmd;
 
