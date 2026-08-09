@@ -174,7 +174,7 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
           })
         }
       >
-        Send instruction
+        Send Instruction
       </button>
 
       {message && <p className="node-message">{message}</p>}

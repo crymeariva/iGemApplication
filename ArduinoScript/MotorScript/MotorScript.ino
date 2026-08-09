@@ -92,7 +92,7 @@ void setup() {
 
 /*  Main loop  */
 void loop() {
-  delay(10) //We can speed this up later
+  delay(10); //We can speed this up later
  static bool busy = false;
   static MotorCommand currentCmd;
   static int stepsRemaining = 0;
