@@ -23,25 +23,24 @@ import SystemPanel from "./Components/SystemPanel/SystemPanel";
 import { useCycleSave } from './hooks/useCycleSave';
 import { useCycleLoader } from './hooks/useCycleLoader';
 import { useCycleDelete } from './hooks/useCycleDelete';
+import {
+  periRotationsToSteps,
+  syringeMlToSteps,
+} from './pumpCalibration';
 
 const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump']);
-const PERI_STEPS_PER_ROTATION = 200;
 const INTER_NODE_DELAY_MS = 3000; // Gonna have to change this / remove entirely to implement a 'finish then next'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function periRotationsToSteps(rotations) {
-  const n = Number(rotations);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.round(n * PERI_STEPS_PER_ROTATION);
-}
 
 function buildNodePayload(node) {
   const settings = node.data?.settings ?? {};
   const steps =
     node.type === 'peristalticPump'
       ? periRotationsToSteps(settings.rotations)
-      : Number(settings.steps);
+      : node.type === 'syringePump'
+        ? syringeMlToSteps(settings.volumeMl)
+        : Number(settings.steps);
 
   return {
     type: 'Motor',
@@ -399,8 +398,8 @@ function App() {
         return;
       }
 
-      if (node.type === 'syringePump' && !settings.steps) {
-        alert(`Missing steps on "${label}".`);
+      if (node.type === 'syringePump' && !syringeMlToSteps(settings.volumeMl)) {
+        alert(`Missing or invalid volume (mL) on "${label}".`);
         return;
       }
 

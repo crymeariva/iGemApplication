@@ -1,10 +1,11 @@
 import { memo, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { syringeMlToSteps } from '../../pumpCalibration';
 import './HardwareNode.css';
 
 const SyringePumpNode = ({ data, isConnectable, selected }) => {
-  const [steps, setSteps] = useState(
-    data.settings?.steps || ''
+  const [volumeMl, setVolumeMl] = useState(
+    data.settings?.volumeMl || ''
   );
 
   const [boardVal, setBoard] = useState(
@@ -22,8 +23,8 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
   );
 
   useEffect(() => {
-    setSteps(data.settings?.steps ?? '');
-  }, [data.settings?.steps]);
+    setVolumeMl(data.settings?.volumeMl ?? '');
+  }, [data.settings?.volumeMl]);
 
   useEffect(() => {
     setBoard(data.settings?.boardVal ?? '');
@@ -36,6 +37,8 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
   useEffect(() => {
     setDirection(data.settings?.direction ?? '');
   }, [data.settings?.direction]);
+
+  const steps = syringeMlToSteps(volumeMl);
 
   const CallBackend = async (payload) => {
     try {
@@ -71,11 +74,11 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
     }
   };
 
-  const handleStepChange = (e) => {
-    setSteps(e.target.value);
+  const handleVolumeChange = (e) => {
+    setVolumeMl(e.target.value);
 
     if (data.onSettingsChange) {
-      data.onSettingsChange({ steps: e.target.value });
+      data.onSettingsChange({ volumeMl: e.target.value });
     }
   };
 
@@ -128,13 +131,15 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
 
         <div className="hardware-node-settings">
           <div className="setting-item">
-            <span className="setting-key">Steps (~6000 Max):</span>
+            <span className="setting-key">Volume (mL):</span>
             <input
               type="number"
               className="setting-input"
-              value={steps}
-              onChange={handleStepChange}
-              placeholder="xx"
+              value={volumeMl}
+              min={0.1}
+              step={0.1}
+              onChange={handleVolumeChange}
+              placeholder="1"
             />
           </div>
           <div className="setting-item">
@@ -183,12 +188,17 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
       <div className="node-actions">
         <button
           className="node-action-btn"
+          disabled={!steps}
           onClick={() =>
             CallBackend({
               type: "Motor",
               axis: axisVal,
               board: Number(boardVal),
-              compInstr: { steps: steps, Direction: directionVal }
+              compInstr: {
+                steps,
+                Direction: directionVal,
+                Speed: 'S',
+              },
             })
           }
         >

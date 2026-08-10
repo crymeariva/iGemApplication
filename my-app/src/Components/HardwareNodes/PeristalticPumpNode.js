@@ -1,8 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { periRotationsToSteps } from '../../pumpCalibration';
 import './HardwareNode.css';
-
-const STEPS_PER_ROTATION = 200;
 
 const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
     const [rotations, setRotations] = useState(
@@ -47,7 +46,7 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
         setSpeed(data.settings?.speed ?? 'S');
     }, [data.settings?.speed]);
 
-    const steps = Math.round(Number(rotations) * STEPS_PER_ROTATION);
+    const steps = periRotationsToSteps(rotations);
 
     const CallBackend = async (payload) => {
         try {
