@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-// const i2c = require("i2c-bus");
-// const { Gpio } = require("onoff");
+const i2c = require("i2c-bus");
+const { Gpio } = require("onoff");
 const db = require("./database");
 const { chat, listModels } = require("./llm");
 
@@ -29,10 +29,6 @@ const MOSMAGE_CONTEXT = fs.readFileSync(
   'utf-8'
 );
 
-/**
- * uncomment this block when testing on Pi
- */
-/**
 // Open I2C bus (bus 1 on Raspberry Pi)
 const bus = i2c.openSync(1);
 const SLAVE_ADDRESS = 0x04;
@@ -51,7 +47,13 @@ const pins = [
   new Gpio(534, "out"),
 ];
 
-// Helper function: convert number to 3-bit array
+const MOTOR_POLL_MS = 100;
+const MOTOR_TIMEOUT_MS = 10 * 60 * 1000; // safety net per move (10 min), subject to change/removal.
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function to3BitArray(num) {
   return [
     (num >> 2) & 1,
@@ -60,14 +62,40 @@ function to3BitArray(num) {
   ];
 }
 
-// Write bits to pins
 function writeBits(bits) {
   bits.forEach((bit, i) => {
     pins[i].writeSync(bit);
   });
 }
 
-app.post("/api/instr", (req, res) => {
+function selectBoard(board) {
+  const bits = to3BitArray(board);
+  writeBits(bits);
+  bus.writeByteSync(TCA_ADDRESS, 0x00, 1 << board);
+}
+
+// Arduino returns 1 while moving, 0 when idle
+function readBoardBusy(board) {
+  selectBoard(board);
+  const buffer = Buffer.alloc(1);
+  bus.readI2cBlockSync(SLAVE_ADDRESS, 0x00, 1, buffer);
+  return buffer[0] === 1;
+}
+
+async function waitUntilBoardIdle(board) {
+  const deadline = Date.now() + MOTOR_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    if (!readBoardBusy(board)) {
+      return;
+    }
+    await sleep(MOTOR_POLL_MS);
+  }
+
+  throw new Error(`Board ${board} timed out waiting for motor to finish`);
+}
+
+app.post("/api/instr", async (req, res) => {
   const { axis, compInstr, board } = req.body;
 
   const direction = compInstr?.Direction?.toLowerCase();
@@ -94,31 +122,29 @@ app.post("/api/instr", (req, res) => {
     return res.status(400).json({ error: "Speed must be F (Fast) or S (Slow)" });
   }
 
-  const bits = to3BitArray(board);
-  writeBits(bits);
-
   const message = `${axis} ${direction} ${distance} ${speed}`;
-
-  // Convert string to byte array (same as Python ord())
   const bytes = Buffer.from(message, "utf-8");
 
   try {
-    bus.writeByteSync(TCA_ADDRESS, 0x00, 1 << board); //Channel select
-
+    selectBoard(board);
 
     bus.writeI2cBlockSync(
       SLAVE_ADDRESS,
-      0x00, // command byte (same as Python)
+      0x00,
       bytes.length,
       bytes
     );
 
     console.log("Sent:", message);
-    res.json({ message: "Command sent to Arduino" });
+
+    await waitUntilBoardIdle(board);
+
+    console.log("Finished:", message, "on board", board);
+    res.json({ message: "Command completed" });
 
   } catch (err) {
     console.error("I2C Error:", err);
-    res.status(500).json({ error: "I2C failed" });
+    res.status(500).json({ error: err.message || "I2C failed" });
   }
 });
 
@@ -135,14 +161,12 @@ app.post("/api/cancel", (req, res) => {
 
   for (const b of boards) {
     try {
-      const bits = to3BitArray(b);
-      writeBits(bits);
+      selectBoard(b);
 
       const bytes = Buffer.from("C", "utf-8");
-      bus.writeByteSync(TCA_ADDRESS, 0x00, 1 << b); //Channel select
       bus.writeI2cBlockSync(
         SLAVE_ADDRESS,
-        0x00, // command byte (same as Python)
+        0x00,
         bytes.length,
         bytes
       );
@@ -177,7 +201,7 @@ app.post("/api/cancel", (req, res) => {
     failedBoards: failed,
   });
 });
-*/
+
 
 /**
  * POST /api/agent/chat

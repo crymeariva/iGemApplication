@@ -80,6 +80,16 @@ void requestCancel() {
   clearQueue();
 }
 
+// Pi reads to know if motor is still moving.
+void isMotorActive() {
+  return busy || !queueIsEmpty();
+}
+
+// I2C master reads 1 byte - 1 = moving, 0 = idle.
+void sendStatus() {
+  Wire.write(isMotorActive() ? 1 : 0)
+}
+
 /*  Axis selection helper  */
 int stepPin;
 int dirPin;
@@ -106,6 +116,7 @@ bool selectAxis(char axis) {
 void setup() {
   Wire.begin(SLAVE_ADDRESS); //Basic Default Address
   Wire.onReceive(receiveData);
+  Wire.onRequest(sendStatus);
 
   pinMode(enPin, OUTPUT);
   digitalWrite(enPin, LOW); // enable motors
