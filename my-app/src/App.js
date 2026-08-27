@@ -19,10 +19,13 @@ import PeristalticPumpNode from './Components/HardwareNodes/PeristalticPumpNode'
 import SpectrometerNode from './Components/HardwareNodes/SpectrometerNode';
 import Sidemenu from './Components/SideMenu/Sidemenu';
 import SystemPanel from "./Components/SystemPanel/SystemPanel";
+import AgentMenu from './Components/AgentMenu/AgentMenu';
+import AgentSettingsDialog from './Components/AgentSettingsDialog/AgentSettingsDialog';
 
 import { useCycleSave } from './hooks/useCycleSave';
 import { useCycleLoader } from './hooks/useCycleLoader';
 import { useCycleDelete } from './hooks/useCycleDelete';
+import { applyCycleToCanvas } from './canvas/addCycleToCanvas';
 import {
   periRotationsToSteps,
   syringeMlToSteps,
@@ -152,6 +155,8 @@ function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [runStatus, setRunStatus] = useState(null);
   const [cycleCount, setCycleCount] = useState(1);
+  const [isAgentOpen, setIsAgentOpen] = useState(false);
+  const [showAgentSettings, setShowAgentSettings] = useState(false);
 
   const [isDarkMode, setIsDarkMode] = useState(
     () => document.documentElement.getAttribute('data-theme') === 'dark'
@@ -219,6 +224,18 @@ function App() {
     setActiveCycleId,
     setActiveCycleName,
   });
+
+  /**
+   * Cycle applied from agent.
+   */
+  const onApplyCycle = useCallback(
+    (cycle) => {
+      applyCycleToCanvas(cycle, { setNodes, setEdges, updateNodeSettings });
+      setActiveCycleId(null);
+      setActiveCycleName('');
+    },
+    [updateNodeSettings, setActiveCycleId, setActiveCycleName]
+  );
 
   /**
    * Node types.
@@ -545,6 +562,15 @@ function App() {
               ? 'Hide System Panel'
               : 'System Panel'}
           </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setIsAgentOpen((open) => !open)}
+            aria-label="Open assistant"
+            aria-pressed={isAgentOpen}
+          >
+            {isAgentOpen ? 'Hide Agent' : 'Agent'}
+          </button>
         </div>
       </header>
 
@@ -596,6 +622,15 @@ function App() {
         onSaveAsNew={onSaveAsNew}
         activeCycleName={activeCycleName}
         onOpenLoadMenu={handleOpenLoadMenu}
+        onOpenAgentSettings={() => setShowAgentSettings(true)}
+      />
+
+      <AgentMenu
+        isOpen={isAgentOpen}
+        nodes={nodes}
+        edges={edges}
+        cycleName={activeCycleName}
+        onApplyCycle={onApplyCycle}
       />
 
       <LoadCycleDialog
@@ -604,6 +639,11 @@ function App() {
         onClose={() => setShowLoadMenu(false)}
         onLoad={handleLoadCycle}
         onDelete={deleteCycle}
+      />
+
+      <AgentSettingsDialog
+        open={showAgentSettings}
+        onClose={() => setShowAgentSettings(false)}
       />
 
       {showSystemPanel && <SystemPanel nodes={nodes} edges={edges} />}

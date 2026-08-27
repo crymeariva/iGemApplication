@@ -1,15 +1,38 @@
 const express = require("express");
 const cors = require("cors");
-const i2c = require("i2c-bus");
-const { Gpio } = require("onoff");
+// const i2c = require("i2c-bus");
+// const { Gpio } = require("onoff");
 const db = require("./database");
+const { chat, listModels } = require("./llm");
 
 const app = express();
 const PORT = 5001;
 
+const fs = require('fs');
+const path = require('path');
+
 app.use(cors());
 app.use(express.json());
 
+const CONTEXT_DIR = path.join(__dirname, 'context');
+
+const { handleAgentMessage } = require('./agent/handleMessage');
+const { getKeyStatus, saveKeys } = require('./agentKeys');
+
+const AGENT_INSTRUCTIONS = fs.readFileSync(
+  path.join(CONTEXT_DIR, 'INSTRUCTIONS.md'),
+  'utf-8'
+);
+
+const MOSMAGE_CONTEXT = fs.readFileSync(
+  path.join(CONTEXT_DIR, 'MOSMAGE.md'),
+  'utf-8'
+);
+
+/**
+ * uncomment this block when testing on Pi
+ */
+/**
 // Open I2C bus (bus 1 on Raspberry Pi)
 const bus = i2c.openSync(1);
 const SLAVE_ADDRESS = 0x04;
@@ -99,10 +122,7 @@ app.post("/api/instr", (req, res) => {
   }
 });
 
-/**
- * POST /api/cancel
- * Halts hardware instructions.
- */
+// POST /api/cancel — Halts hardware instructions.
 app.post("/api/cancel", (req, res) => {
   const { board } = req.body ?? {};
 
@@ -156,6 +176,162 @@ app.post("/api/cancel", (req, res) => {
     cancelledBoards: cancelled,
     failedBoards: failed,
   });
+});
+*/
+
+/**
+ * POST /api/agent/chat
+ * ai chat helper
+ */
+function getCanvasNodeCount(canvasContext) {
+  if (!canvasContext) return 0;
+  if (Number.isInteger(canvasContext.nodeCount)) return canvasContext.nodeCount;
+  return Array.isArray(canvasContext.nodes) ? canvasContext.nodes.length : 0;
+}
+
+function isCanvasEmpty(canvasContext) {
+  return getCanvasNodeCount(canvasContext) === 0;
+}
+
+function buildCanvasSystemMessage(canvasContext) {
+  if (isCanvasEmpty(canvasContext)) {
+    return {
+      role: 'system',
+      content:
+        'The canvas is currently EMPTY: 0 nodes, 0 connections.\n' +
+        'This overrides any earlier messages in this conversation that mention nodes on the canvas.\n' +
+        'If the user asks what is on the canvas, answer that it is empty.',
+    };
+  }
+
+  const summary = canvasContext.summary ?? '';
+
+  return {
+    role: 'system',
+    content:
+      `Current canvas state (authoritative — there are exactly ${canvasContext.nodeCount} node(s) on screen):\n\n` +
+      `--- CANVAS INVENTORY ---\n${summary}\n--- END CANVAS INVENTORY ---`,
+  };
+}
+
+function prepareMessagesForModel(messages, canvasContext) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return [];
+  }
+
+  if (!isCanvasEmpty(canvasContext) || messages.length === 1) {
+    return messages;
+  }
+
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+  return lastUserMessage ? [lastUserMessage] : messages;
+}
+
+/**
+ * Build provider-safe chat messages.
+ * Remote APIs (OpenRouter/Gemini) often ignore all but the first system message,
+ * so instructions + MOSMAGE + canvas are merged into one system block, and the
+ * live canvas is also attached to the latest user message for grounding.
+ */
+function buildAgentChatMessages({ instructions, mosmageContext, canvasContext, messages }) {
+  const canvasText = buildCanvasSystemMessage(canvasContext).content;
+  const systemContent = [
+    instructions.trim(),
+    '',
+    'MOSMAGE reference:',
+    mosmageContext.trim(),
+    '',
+    canvasText,
+  ].join('\n');
+
+  const conversation = prepareMessagesForModel(messages, canvasContext)
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string');
+
+  if (conversation.length === 0) {
+    return [{ role: 'system', content: systemContent }];
+  }
+
+  const lastIdx = conversation.length - 1;
+  const grounded = conversation.map((message, index) => {
+    if (index !== lastIdx || message.role !== 'user') return message;
+    return {
+      role: 'user',
+      content:
+        `${message.content}\n\n` +
+        `[Live canvas ground truth — answer from this, not from earlier chat guesses]\n` +
+        `${canvasText}`,
+    };
+  });
+
+  return [{ role: 'system', content: systemContent }, ...grounded];
+}
+
+app.post('/api/agent/chat', async (req, res) => {
+  const { messages, canvasContext } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages[] required' });
+  }
+  try {
+    const result = await handleAgentMessage({
+      messages,
+      canvasContext,
+      chatFn: async ({ messages, canvasContext }) => {
+        const modelMessages = buildAgentChatMessages({
+          instructions: AGENT_INSTRUCTIONS,
+          mosmageContext: MOSMAGE_CONTEXT,
+          canvasContext,
+          messages,
+        });
+        const r = await chat({
+          messages: modelMessages,
+          allowFallback: true,
+        });
+        return {
+          reply: r.content ?? '',
+          modelId: r.modelId,
+          modelLabel: r.modelLabel,
+          usedFallback: Boolean(r.usedFallback),
+        };
+      },
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Agent chat error:', err);
+    res.status(err.status || 500).json({
+      error: err.message || 'Chat request failed',
+    });
+  }
+});
+
+/**
+ * GET /api/agent/models
+ * Model catalog / default label for the agent status display.
+ */
+app.get('/api/agent/models', (_req, res) => {
+  res.json(listModels());
+});
+
+/**
+ * GET /api/agent/keys
+ * Status only, never returns the raw keys.
+ */
+app.get('/api/agent/keys', (_req, res) => {
+  res.json(getKeyStatus());
+});
+
+/**
+ * POST /api/agent/keys
+ * Empty string clearing that key
+ */
+app.post('/api/agent/keys', (req, res) => {
+  const { geminiApiKey, openRouterApiKey } = req.body ?? {};
+  try {
+    const status = saveKeys({ geminiApiKey, openRouterApiKey });
+    res.json(status);
+  } catch (err) {
+    console.error('Save agent keys error:', err);
+    res.status(500).json({ error: err.message || 'Failed to save keys' });
+  }
 });
 
 /**

@@ -10,6 +10,7 @@ const Sidemenu = ({
     onSaveAsNew,
     activeCycleName,
     onOpenLoadMenu,
+    onOpenAgentSettings,
 }) => {
     const [isPartsOpen, setIsPartsOpen] = useState(true);
     const [isOptionsOpen, setIsOptionsOpen] = useState(true);
@@ -85,6 +86,13 @@ const Sidemenu = ({
                         </button>
                         <button type="button" className="Sidemenu__dark-mode-btn" onClick={onToggleDarkMode}>
                             {isDarkMode ? 'Light mode' : 'Dark Mode'}
+                        </button>
+                        <button
+                            type="button"
+                            className="Sidemenu_load-btn"
+                            onClick={onOpenAgentSettings}
+                        >
+                            Agent Settings
                         </button>
                     </div>
                 )}
