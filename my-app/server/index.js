@@ -29,10 +29,7 @@ const MOSMAGE_CONTEXT = fs.readFileSync(
   'utf-8'
 );
 
-/**
- * uncomment this block when testing on Pi
- */
-/**
+
 // Open I2C bus (bus 1 on Raspberry Pi)
 const bus = i2c.openSync(1);
 const SLAVE_ADDRESS = 0x04;
@@ -177,7 +174,6 @@ app.post("/api/cancel", (req, res) => {
     failedBoards: failed,
   });
 });
-*/
 
 /**
  * POST /api/agent/chat
