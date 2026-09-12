@@ -1,5 +1,5 @@
-const int sensorPin = A0;
-const float VREF = 3.3;
+const int sensorPin = A5;
+const float VREF = 5.0;
 const int ADC_MAX = 1023;   // if values exceed 1023
 
 void setup() {
