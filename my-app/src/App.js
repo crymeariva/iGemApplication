@@ -31,7 +31,7 @@ import {
   syringeMlToSteps,
 } from './pumpCalibration';
 
-const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump']);
+const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump', 'spectrometer']);
 const INTER_NODE_DELAY_MS = 3000; // Gonna have to change this / remove entirely to implement a 'finish then next'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -55,6 +55,28 @@ function buildNodePayload(node) {
       Speed: settings.speed || 'S',
     },
   };
+}
+
+async function executeNode(node) {
+  const settings = node.data?.settings ?? {};
+
+  if (node.type === 'spectrometer') {
+    return fetch('http://localhost:5001/api/spec/wait', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metric: settings.metric || 'raw',
+        target: Number(settings.target),
+        durationSec: Number(settings.durationSec),
+      }),
+    });
+  }
+
+  return fetch('http://localhost:5001/api/instr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildNodePayload(node)),
+  });
 }
 
 function getNodeOrder(nodes, edges) {
@@ -410,6 +432,17 @@ function App() {
       const settings = node.data?.settings ?? {};
       const label = node.data?.label ?? node.id;
 
+      if (node.type === 'spectrometer') {
+        if (
+          !Number.isFinite(Number(settings.target)) ||
+          !Number.isFinite(Number(settings.durationSec)) ||
+          Number(settings.durationSec) <= 0
+        ) {
+          alert(`Missing target or duration on "${label}".`);
+          return;
+        }
+        continue;
+      }
       if (!settings.boardVal || !settings.axis || !settings.direction) {
         alert(`Missing board/axis/direction on "${label}".`);
         return;
@@ -454,16 +487,10 @@ function App() {
             cycle: c,
             cycleTotal: totalCycles,
             label: node.data?.label ?? node.id,
-            board: settings.boardVal ?? '?',
+            board: settings.boardVal ?? (node.type === 'spectrometer' ? 'spec' : '?'),
           });
 
-          const payload = buildNodePayload(node);
-
-          const res = await fetch('http://localhost:5001/api/instr', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+          const res = await executeNode(node);
 
           if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));

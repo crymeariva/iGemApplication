@@ -3,6 +3,7 @@ const cors = require("cors");
 // const i2c = require("i2c-bus");
 // const { Gpio } = require("onoff");
 const db = require("./database");
+const spec = require("./spectrometer");
 const { chat, listModels } = require("./llm");
 
 const app = express();
@@ -178,6 +179,32 @@ app.post("/api/cancel", (req, res) => {
   });
 });
 */
+
+app.get("/api/spec/reading", (_req, res) => {
+  const result = spec.getReading();
+  if (!result.ok) {
+    return res.status(503).json(result);
+  }
+  res.json(result);
+});
+
+
+app.post("/api/spec/wait", async (req, res) => {
+  const metric = req.body?.metric === "voltage" ? "voltage" : "raw";
+  const target = Number(req.body?.target);
+  const durationSec = Number(req.body?.durationSec);
+  if (!Number.isFinite(target)) {
+    return res.status(400).json({ error: "target must be a number" });
+  }
+  if (!Number.isFinite(durationSec) || durationSec <= 0) {
+    return res.status(400).json({ error: "durationSec must be a positive number" });
+  }
+  const result = await spec.waitUntilAvg({ metric, target, durationSec });
+  res.json(result);
+});
+
+app.get("/api/get/spec/ports", )
+
 
 /**
  * POST /api/agent/chat
