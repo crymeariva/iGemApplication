@@ -48,7 +48,8 @@ const pins = [
 ];
 
 const MOTOR_POLL_MS = 100;
-const MOTOR_TIMEOUT_MS = 10 * 60 * 1000; // safety net per move (10 min), subject to change/removal.
+const MOTOR_BUSY_GRACE_MS = 3000; // wait up to this long to see "busy" after send
+const MOTOR_TIMEOUT_MS = 10 * 60 * 1000; // safety net per move (10 min)
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,7 +75,7 @@ function selectBoard(board) {
   bus.writeByteSync(TCA_ADDRESS, 0x00, 1 << board);
 }
 
-// Arduino returns 1 while moving, 0 when idle
+// Arduino returns 1 while moving / queued, 0 when idle
 function readBoardBusy(board) {
   selectBoard(board);
   const buffer = Buffer.alloc(1);
@@ -82,10 +83,31 @@ function readBoardBusy(board) {
   return buffer[0] === 1;
 }
 
-async function waitUntilBoardIdle(board) {
-  const deadline = Date.now() + MOTOR_TIMEOUT_MS;
+/**
+ * wait until the board reports busy, then until idle.
+ * Without the busy phase, a too-early idle poll returns immediately and the
+ * UI starts the next edge delay while the motor is still running.
+ */
+async function waitUntilBoardFinished(board) {
+  const busyDeadline = Date.now() + MOTOR_BUSY_GRACE_MS;
+  let sawBusy = false;
 
-  while (Date.now() < deadline) {
+  while (Date.now() < busyDeadline) {
+    if (readBoardBusy(board)) {
+      sawBusy = true;
+      break;
+    }
+    await sleep(MOTOR_POLL_MS);
+  }
+
+  if (!sawBusy) {
+    console.warn(
+      `Board ${board}: never reported busy after send — waiting for idle anyway`
+    );
+  }
+
+  const idleDeadline = Date.now() + MOTOR_TIMEOUT_MS;
+  while (Date.now() < idleDeadline) {
     if (!readBoardBusy(board)) {
       return;
     }
@@ -137,7 +159,7 @@ app.post("/api/instr", async (req, res) => {
 
     console.log("Sent:", message);
 
-    await waitUntilBoardIdle(board);
+    await waitUntilBoardFinished(board);
 
     console.log("Finished:", message, "on board", board);
     res.json({ message: "Command completed" });
