@@ -81,13 +81,13 @@ void requestCancel() {
 }
 
 // Pi reads to know if motor is still moving.
-void isMotorActive() {
+bool isMotorActive() {
   return busy || !queueIsEmpty();
 }
 
 // I2C master reads 1 byte - 1 = moving, 0 = idle.
 void sendStatus() {
-  Wire.write(isMotorActive() ? 1 : 0)
+  Wire.write(isMotorActive() ? 1 : 0);
 }
 
 /*  Axis selection helper  */
