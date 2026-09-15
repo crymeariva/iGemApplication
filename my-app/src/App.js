@@ -17,6 +17,7 @@ import SyringePumpNode from './Components/HardwareNodes/SyringePumpNode';
 import ElectroporatorNode from './Components/HardwareNodes/ElectroporatorNode';
 import PeristalticPumpNode from './Components/HardwareNodes/PeristalticPumpNode';
 import SpectrometerNode from './Components/HardwareNodes/SpectrometerNode';
+import ConnectionEdge from './Components/Edges/ConnectionEdge';
 import Sidemenu from './Components/SideMenu/Sidemenu';
 import SystemPanel from "./Components/SystemPanel/SystemPanel";
 import AgentMenu from './Components/AgentMenu/AgentMenu';
@@ -30,11 +31,14 @@ import {
   periRotationsToSteps,
   syringeMlToSteps,
 } from './pumpCalibration';
+import {
+  DEFAULT_STEP_WAIT,
+  abortableSleep,
+  formatCountdown,
+  stepWaitMs,
+} from './stepTiming';
 
 const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump']);
-const INTER_NODE_DELAY_MS = 3000; // Gonna have to change this / remove entirely to implement a 'finish then next'
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function buildNodePayload(node) {
   const settings = node.data?.settings ?? {};
@@ -251,6 +255,13 @@ function App() {
     []
   );
 
+  const edgeTypes = useMemo(
+    () => ({
+      connection: ConnectionEdge,
+    }),
+    []
+  );
+
   /**
    * ReactFlow handlers.
    */
@@ -268,7 +279,17 @@ function App() {
 
   const onConnect = useCallback(
     (connection) =>
-      setEdges((eds) => addEdge(connection, eds)),
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...connection,
+            type: 'connection',
+            animated: true,
+            data: { ...DEFAULT_STEP_WAIT },
+          },
+          eds
+        )
+      ),
     []
   );
 
@@ -394,7 +415,8 @@ function App() {
   }, []);
 
   /**
-   * Walks the node chain and sends each instruction in order (V1: delay between sends).
+   * Walks the node chain and sends each instruction in order.
+   * After each finished move, waits using the delay on the edge to the next node.
    * Repeats the full chain `cycleCount` times.
    */
   const onSendAll = useCallback(async () => {
@@ -472,12 +494,22 @@ function App() {
             );
           }
 
-          const isLastStep = i === stepTotal - 1;
-          const isLastCycle = c === totalCycles;
-
-          if (!isLastStep || !isLastCycle) {
-            await sleep(INTER_NODE_DELAY_MS);
-            if (cancelRunRef.current) break outer;
+          if (i < stepTotal - 1) {
+            const nextId = result.order[i + 1].id;
+            const edge = edges.find(
+              (e) => e.source === node.id && e.target === nextId
+            );
+            const waitMs = stepWaitMs(edge?.data);
+            if (waitMs > 0) {
+              await abortableSleep(waitMs, cancelRunRef, (remainingMs) => {
+                const label = `Waiting ${formatCountdown(remainingMs)}`;
+                setRunStatus((prev) => {
+                  if (!prev || prev.label === label) return prev;
+                  return { ...prev, label, board: null };
+                });
+              });
+              if (cancelRunRef.current) break outer;
+            }
           }
         }
       }
@@ -593,7 +625,9 @@ function App() {
             <span className="run-status__msg">Aborted</span>
           ) : runStatus.label ? (
             <span className="run-status__msg">
-              Current: {runStatus.label}, Board: {runStatus.board}
+              {runStatus.board != null
+                ? `Current: ${runStatus.label}, Board: ${runStatus.board}`
+                : runStatus.label}
             </span>
           ) : (
             <span className="run-status__msg">Starting…</span>
@@ -653,8 +687,11 @@ function App() {
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           defaultEdgeOptions={{
+            type: 'connection',
             animated: true,
+            data: { ...DEFAULT_STEP_WAIT },
           }}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

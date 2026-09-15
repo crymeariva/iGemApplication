@@ -383,8 +383,8 @@ app.post("/api/cycles", (req, res) => {
   `);
 
   const edgeStmt = db.prepare(`
-    INSERT INTO edges (cycleId, flowId, source, target)
-    VALUES (@cycleId, @flowId, @source, @target)
+    INSERT INTO edges (cycleId, flowId, source, target, jsonData)
+    VALUES (@cycleId, @flowId, @source, @target, @jsonData)
   `);
 
   /**
@@ -414,6 +414,7 @@ app.post("/api/cycles", (req, res) => {
         flowId: edge.id,
         source: edge.source,
         target: edge.target,
+        jsonData: JSON.stringify(edge.data ?? {}),
       });
     }
   });
@@ -460,11 +461,24 @@ app.get("/api/cycles/:id", (req, res) => {
     }));
 
     // Format edges
-    const formattedEdges = edges.map(e => ({
-      id: e.flowId,
-      source: e.source,
-      target: e.target
-    }));
+    const formattedEdges = edges.map(e => {
+      let data = {};
+      if (e.jsonData) {
+        try {
+          data = JSON.parse(e.jsonData) || {};
+        } catch {
+          data = {};
+        }
+      }
+      return {
+        id: e.flowId,
+        source: e.source,
+        target: e.target,
+        type: 'connection',
+        animated: true,
+        data,
+      };
+    });
 
     res.json({ nodes: formattedNodes, edges: formattedEdges });
   } catch (err) {
@@ -517,8 +531,8 @@ app.put("/api/cycles/:id", (req, res) => {
     `);
 
   const insertEdges = db.prepare(`
-    INSERT INTO edges (cycleId, flowId, source, target)
-    VALUES (@cycleId, @flowId, @source, @target)
+    INSERT INTO edges (cycleId, flowId, source, target, jsonData)
+    VALUES (@cycleId, @flowId, @source, @target, @jsonData)
     `);
 
   const overwrite = db.transaction((nodesIn, edgesIn) => {
@@ -542,6 +556,7 @@ app.put("/api/cycles/:id", (req, res) => {
         flowId: edge.id,
         source: edge.source,
         target: edge.target,
+        jsonData: JSON.stringify(edge.data ?? {}),
       });
     }
 

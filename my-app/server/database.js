@@ -19,7 +19,7 @@ db.pragma('foreign_keys = ON');
 // Schema overview:
 // - cycles: one row per saved, user-named canvas
 // - nodes: node state for each cycle (position + jsonData payload)
-// - edges: connections for each cycle
+// - edges: connections for each cycle (jsonData for delay settings)
 // ON DELETE CASCADE removes related nodes/edges when a cycle is deleted.
 db.exec(`
     CREATE TABLE IF NOT EXISTS cycles (
@@ -44,9 +44,16 @@ db.exec(`
     flowId TEXT NOT NULL,
     source TEXT NOT NULL,
     target TEXT NOT NULL,
+    jsonData TEXT,
     FOREIGN KEY (cycleId) REFERENCES cycles(id) ON DELETE CASCADE
     );
 `);
+
+// This is for the Pi's current database, should update it properly.
+const edgeCols = db.prepare(`PRAGMA table_info(edges)`).all();
+if (!edgeCols.some((c) => c.name === 'jsonData')) {
+    db.exec(`ALTER TABLE edges ADD COLUMN jsonData TEXT`);
+}
 
 console.log("Database made successfully");
 
