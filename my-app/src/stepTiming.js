@@ -40,15 +40,24 @@ export function formatCountdown(ms) {
 
 /**
  * Sleep in chunks so Abort can interrupt long waits.
- * onTick(remainingMs) runs at the start of each chunk (and once at 0).
+ * onTick(remainingMs) fires about once per second.
  */
 export async function abortableSleep(ms, cancelRef, onTick, chunkMs = 250) {
   const end = Date.now() + Math.max(0, ms);
+  let lastShownSec = -1;
+
   while (Date.now() < end) {
     if (cancelRef?.current) return;
+
     const remaining = end - Date.now();
-    if (typeof onTick === 'function') onTick(remaining);
+    const shownSec = Math.max(0, Math.ceil(remaining / 1000));
+    if (shownSec !== lastShownSec) {
+      lastShownSec = shownSec;
+      if (typeof onTick === 'function') onTick(remaining);
+    }
+
     await new Promise((r) => setTimeout(r, Math.min(chunkMs, remaining)));
   }
+
   if (typeof onTick === 'function') onTick(0);
 }
