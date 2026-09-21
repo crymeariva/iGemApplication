@@ -65,6 +65,7 @@ async function executeNode(node) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        port: settings.port,
         metric: settings.metric || 'raw',
         target: Number(settings.target),
         durationSec: Number(settings.durationSec),
@@ -404,15 +405,19 @@ function App() {
     cancelRunRef.current = true;
     setRunStatus((prev) => (prev ? { ...prev, aborted: true, error: null } : prev));
 
-    try {
-      await fetch('http://localhost:5001/api/cancel', {
+    // Fan out: each device family has its own stop. Add thermo/etc. here later.
+    await Promise.allSettled([
+      fetch('http://localhost:5001/api/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
-      });
-    } catch (err) {
-      console.error(err);
-    }
+      }),
+      fetch('http://localhost:5001/api/spec/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    ]);
   }, []);
 
   /**
@@ -434,11 +439,12 @@ function App() {
 
       if (node.type === 'spectrometer') {
         if (
+          !settings.port ||
           !Number.isFinite(Number(settings.target)) ||
           !Number.isFinite(Number(settings.durationSec)) ||
           Number(settings.durationSec) <= 0
         ) {
-          alert(`Missing target or duration on "${label}".`);
+          alert(`Missing port, target, or duration on "${label}".`);
           return;
         }
         continue;
@@ -492,8 +498,11 @@ function App() {
 
           const res = await executeNode(node);
 
+          if (cancelRunRef.current) break outer;
+
           if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));
+            if (errBody.cancelled || cancelRunRef.current) break outer;
             throw new Error(
               errBody.error || `Send failed for ${node.data?.label ?? node.id}`
             );

@@ -180,31 +180,51 @@ app.post("/api/cancel", (req, res) => {
 });
 */
 
-app.get("/api/spec/reading", (_req, res) => {
-  const result = spec.getReading();
+app.get("/api/spec/ports", async (_req, res) => {
+  try {
+    const ports = await spec.listPorts();
+    res.json({ ok: true, ports });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get("/api/spec/reading", (req, res) => {
+  const result = spec.getReading(req.query.port);
   if (!result.ok) {
     return res.status(503).json(result);
   }
   res.json(result);
 });
 
-
 app.post("/api/spec/wait", async (req, res) => {
   const metric = req.body?.metric === "voltage" ? "voltage" : "raw";
   const target = Number(req.body?.target);
   const durationSec = Number(req.body?.durationSec);
+  const port = req.body?.port;
   if (!Number.isFinite(target)) {
     return res.status(400).json({ error: "target must be a number" });
   }
   if (!Number.isFinite(durationSec) || durationSec <= 0) {
     return res.status(400).json({ error: "durationSec must be a positive number" });
   }
-  const result = await spec.waitUntilAvg({ metric, target, durationSec });
-  res.json(result);
+
+  try {
+    const result = await spec.waitUntilAvg({ port, metric, target, durationSec });
+    res.json(result);
+  } catch (err) {
+    if (err.cancelled) {
+      return res.status(499).json({ ok: false, cancelled: true });
+    }
+    const status = err.busy ? 409 : 500;
+    res.status(status).json({ ok: false, error: err.message });
+  }
 });
 
-app.get("/api/get/spec/ports", )
-
+app.post("/api/spec/cancel", (req, res) => {
+  const cancelled = spec.cancelWait(req.body?.port);
+  res.json({ ok: true, cancelled });
+});
 
 /**
  * POST /api/agent/chat
