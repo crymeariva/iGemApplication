@@ -258,13 +258,22 @@ app.post("/api/spec/wait", async (req, res) => {
     return res.status(400).json({ error: "durationSec must be a positive number" });
   }
 
+  const startedAt = Date.now();
+  console.log(`Spec waiting: ${port} ${metric} avg >= ${target} over ${durationSec}s`);
   try {
     const result = await spec.waitUntilAvg({ port, metric, target, durationSec });
+    const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+    console.log(
+      `Spec reached: ${port} avg ${result.average.toFixed(2)} over ${result.samples} samples ` +
+      `(target ${target}) after ${elapsedSec}s`
+    );
     res.json(result);
   } catch (err) {
     if (err.cancelled) {
+      console.log(`Spec cancelled: ${port}`);
       return res.status(499).json({ ok: false, cancelled: true });
     }
+    console.error(`Spec wait failed: ${port}:`, err.message);
     const status = err.busy ? 409 : 500;
     res.status(status).json({ ok: false, error: err.message });
   }

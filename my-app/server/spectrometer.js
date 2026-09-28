@@ -107,14 +107,19 @@ function waitUntilAvg({ port, metric, target, durationSec }) {
       fn(value);
     };
 
+    const startedAt = Date.now();
+
     const timer = setInterval(() => {
       const now = Date.now();
+      // important - only judge once a full duration of readings from this wait exists,
+      // so readings taken before the step started are never averaged.
+      if (now - startedAt < durationMs) return;
+
       // Re-fetch each tick: the reader is replaced if the port reconnects.
       const samples = ensureReader(path).samples;
       const window = samples.filter((s) => s.at >= now - durationMs);
 
       if (window.length === 0) return;
-      if (now - window[0].at < durationMs) return;
 
       const average =
         window.reduce((sum, s) => sum + s[metric], 0) / window.length;
