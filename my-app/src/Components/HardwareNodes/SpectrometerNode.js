@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import './HardwareNode.css';
 
@@ -27,7 +27,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
         setPort(data.settings?.port ?? '');
     }, [data.settings?.port]);
 
-    useEffect(() => {
+    const refreshPorts = useCallback(() => {
         fetch('http://localhost:5001/api/spec/ports')
             .then((res) => res.json())
             .then((result) => {
@@ -37,13 +37,21 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
     }, []);
 
     useEffect(() => {
+        refreshPorts();
+    }, [refreshPorts]);
+
+    useEffect(() => {
+        if (!port) {
+            setLive({ ok: false, error: 'Select a port' });
+            return;
+        }
+
         let cancelled = false;
 
         const tick = async () => {
             try {
-                const qs = port ? `?port=${encodeURIComponent(port)}` : '';
                 const res = await fetch(
-                    'http://localhost:5001/api/spec/reading' + qs
+                    `http://localhost:5001/api/spec/reading?port=${encodeURIComponent(port)}`
                 );
                 const result = await res.json();
                 if (!cancelled) {
@@ -194,6 +202,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
                             className="setting-select"
                             value={port}
                             onChange={handlePortChange}
+                            onFocus={refreshPorts}
                         >
                             <option value="">Select</option>
                             {ports.map((p) => (

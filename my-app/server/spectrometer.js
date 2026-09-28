@@ -1,19 +1,17 @@
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 
-const DEFAULT_PORT = process.env.SPEC_SERIAL_PORT || 'COM3';
 const LINE_RE = /Raw\s*=\s*(\d+).*Voltage\s*=\s*([\d.]+)/i;
 const SAMPLE_KEEP_MS = 5 * 60 * 1000;
 
 const readers = {};
 const activeWaits = new Map();
 
-function resolvePath(portPath) {
-  return portPath || DEFAULT_PORT;
+function noPortError() {
+  return Object.assign(new Error('No spectrometer port selected'), { noPort: true });
 }
 
-function ensureReader(portPath) {
-  const path = resolvePath(portPath);
+function ensureReader(path) {
   if (readers[path]) return readers[path];
 
   const serial = new SerialPort({ path, baudRate: 115200 });
@@ -46,9 +44,20 @@ function ensureReader(portPath) {
     console.log(`Spectrometer serial open on ${path}`);
   });
 
+  // Drop dead readers so the next request reopens the port (unplug, failed open).
+  const forget = () => {
+    if (readers[path] === reader) delete readers[path];
+  };
+
   serial.on('error', (err) => {
     reader.lastError = err.message;
-    console.error('Spectrometer serial error:', err.message);
+    console.error(`Spectrometer serial error on ${path}:`, err.message);
+    if (!serial.isOpen) forget();
+  });
+
+  serial.on('close', () => {
+    console.log(`Spectrometer serial closed on ${path}`);
+    forget();
   });
 
   readers[path] = reader;
@@ -64,6 +73,7 @@ async function listPorts() {
 }
 
 function getReading(portPath) {
+  if (!portPath) return { ok: false, error: 'Select a port' };
   const reader = ensureReader(portPath);
   if (!reader.lastReading) {
     return {
@@ -77,10 +87,10 @@ function getReading(portPath) {
 }
 
 function waitUntilAvg({ port, metric, target, durationSec }) {
-  const reader = ensureReader(port);
+  if (!port) return Promise.reject(noPortError());
+  const path = port;
+  ensureReader(path);
   const durationMs = durationSec * 1000;
-  const samples = reader.samples;
-  const path = reader.path;
 
   if (activeWaits.has(path)) {
     return Promise.reject(
@@ -99,6 +109,8 @@ function waitUntilAvg({ port, metric, target, durationSec }) {
 
     const timer = setInterval(() => {
       const now = Date.now();
+      // Re-fetch each tick: the reader is replaced if the port reconnects.
+      const samples = ensureReader(path).samples;
       const window = samples.filter((s) => s.at >= now - durationMs);
 
       if (window.length === 0) return;
@@ -134,8 +146,7 @@ function waitUntilAvg({ port, metric, target, durationSec }) {
 
 function cancelWait(portPath) {
   if (portPath) {
-    const path = resolvePath(portPath);
-    const wait = activeWaits.get(path);
+    const wait = activeWaits.get(portPath);
     if (!wait) return false;
     wait.cancel();
     return true;

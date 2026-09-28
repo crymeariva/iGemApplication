@@ -248,6 +248,9 @@ app.post("/api/spec/wait", async (req, res) => {
   const target = Number(req.body?.target);
   const durationSec = Number(req.body?.durationSec);
   const port = req.body?.port;
+  if (!port) {
+    return res.status(400).json({ error: "port is required" });
+  }
   if (!Number.isFinite(target)) {
     return res.status(400).json({ error: "target must be a number" });
   }
