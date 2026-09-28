@@ -28,6 +28,14 @@ export function applyCycleToCanvas(cycle, { setNodes, setEdges, updateNodeSettin
       id: e.id || `e-${i + 1}`,
       source: e.source,
       target: e.target,
+      type: e.type || 'connection',
+      animated: e.animated !== false,
+      data: {
+        delayHours: 0,
+        delayMinutes: 0,
+        delaySeconds: 0,
+        ...(e.data ?? {}),
+      },
     }))
   );
 }

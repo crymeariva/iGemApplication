@@ -52,7 +52,21 @@ export function useCycleLoader({ setNodes, setEdges, updateNodeSettings }) {
         }))
       );
 
-      setEdges(res.data.edges);
+      setEdges(
+        (res.data.edges ?? []).map((edge, i) => ({
+          id: edge.id || `e-${i + 1}`,
+          source: edge.source,
+          target: edge.target,
+          type: edge.type || 'connection',
+          animated: edge.animated !== false,
+          data: {
+            delayHours: 0,
+            delayMinutes: 0,
+            delaySeconds: 0,
+            ...(edge.data ?? {}),
+          },
+        }))
+      );
 
       setShowLoadMenu(false);
 
