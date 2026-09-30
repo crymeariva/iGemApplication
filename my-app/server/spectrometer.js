@@ -3,6 +3,8 @@ const { ReadlineParser } = require('@serialport/parser-readline');
 
 const LINE_RE = /Raw\s*=\s*(\d+).*Voltage\s*=\s*([\d.]+)/i;
 const SAMPLE_KEEP_MS = 5 * 60 * 1000;
+// Must exceed the Arduino's ~2s reset-on-open plus its print interval.
+const STALE_MS = 5000;
 
 const readers = {};
 const activeWaits = new Map();
@@ -113,10 +115,25 @@ function waitUntilAvg({ port, metric, target, durationSec }) {
       const now = Date.now();
       // important - only judge once a full duration of readings from this wait exists,
       // so readings taken before the step started are never averaged.
+      // Look up without reopening: a vanished reader means the port closed,
+      // and the stale check below ends the wait instead of retrying every tick.
+      const samples = readers[path]?.samples ?? [];
+      const lastAt = samples.length ? samples[samples.length - 1].at : 0;
+      if (now - Math.max(startedAt, lastAt) > STALE_MS) {
+        finish(
+          reject,
+          Object.assign(
+            new Error(
+              `No data from ${path} for ${STALE_MS / 1000}s. Is the spectrometer unplugged?`
+            ),
+            { stale: true }
+          )
+        );
+        return;
+      }
+
       if (now - startedAt < durationMs) return;
 
-      // Re-fetch each tick: the reader is replaced if the port reconnects.
-      const samples = ensureReader(path).samples;
       const window = samples.filter((s) => s.at >= now - durationMs);
 
       if (window.length === 0) return;

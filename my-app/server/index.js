@@ -260,6 +260,14 @@ app.post("/api/spec/wait", async (req, res) => {
 
   const startedAt = Date.now();
   console.log(`Spec waiting: ${port} ${metric} avg >= ${target} over ${durationSec}s`);
+
+  // Tab closed or refreshed mid-wait
+  res.on("close", () => {
+    if (!res.writableEnded && spec.cancelWait(port)) {
+      console.log(`Spec wait dropped: client disconnected (${port})`);
+    }
+  });
+
   try {
     const result = await spec.waitUntilAvg({ port, metric, target, durationSec });
     const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
@@ -269,6 +277,7 @@ app.post("/api/spec/wait", async (req, res) => {
     );
     res.json(result);
   } catch (err) {
+    if (res.destroyed) return;
     if (err.cancelled) {
       console.log(`Spec cancelled: ${port}`);
       return res.status(499).json({ ok: false, cancelled: true });
