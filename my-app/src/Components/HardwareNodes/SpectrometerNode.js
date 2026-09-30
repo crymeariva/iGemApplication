@@ -6,6 +6,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
     const [metric, setMetric] = useState(data.settings?.metric || 'raw');
     const [target, setTarget] = useState(data.settings?.target || '');
     const [durationSec, setDurationSec] = useState(data.settings?.durationSec ?? '');
+    const [timeoutMin, setTimeoutMin] = useState(data.settings?.timeoutMin ?? '');
     const [port, setPort] = useState(data.settings?.port || '');
     const [ports, setPorts] = useState([]);
     const [live, setLive] = useState(null);
@@ -22,6 +23,10 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
     useEffect(() => {
         setDurationSec(data.settings?.durationSec ?? '');
     }, [data.settings?.durationSec]);
+
+    useEffect(() => {
+        setTimeoutMin(data.settings?.timeoutMin ?? '');
+    }, [data.settings?.timeoutMin]);
 
     useEffect(() => {
         setPort(data.settings?.port ?? '');
@@ -93,6 +98,13 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
         }
     };
 
+    const handleTimeoutChange = (e) => {
+        setTimeoutMin(e.target.value);
+        if (data.onSettingsChange) {
+            data.onSettingsChange({ timeoutMin: e.target.value });
+        }
+    };
+
     const handlePortChange = (e) => {
         setPort(e.target.value);
         if (data.onSettingsChange) {
@@ -111,6 +123,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
                     metric,
                     target: Number(target),
                     durationSec: Number(durationSec),
+                    timeoutMin: timeoutMin === '' ? null : timeoutMin,
                 }),
             });
 
@@ -245,6 +258,18 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
                             step={0.1}
                             onChange={handleDurationChange}
                             placeholder="xx"
+                        />
+                    </div>
+                    <div className="setting-item">
+                        <span className="setting-key">Max Wait (min):</span>
+                        <input
+                            type="number"
+                            className="setting-input"
+                            value={timeoutMin}
+                            min={0.1}
+                            step="any"
+                            onChange={handleTimeoutChange}
+                            placeholder="No limit"
                         />
                     </div>
                 </div>

@@ -257,9 +257,25 @@ app.post("/api/spec/wait", async (req, res) => {
   if (!Number.isFinite(durationSec) || durationSec <= 0) {
     return res.status(400).json({ error: "durationSec must be a positive number" });
   }
+  const rawTimeout = req.body?.timeoutMin;
+  const timeoutMin =
+    rawTimeout === undefined || rawTimeout === null || rawTimeout === ""
+      ? null
+      : Number(rawTimeout);
+  if (timeoutMin !== null) {
+    if (!Number.isFinite(timeoutMin) || timeoutMin <= 0) {
+      return res.status(400).json({ error: "timeoutMin must be a positive number" });
+    }
+    if (timeoutMin * 60 <= durationSec) {
+      return res.status(400).json({ error: "timeoutMin must be longer than durationSec" });
+    }
+  }
 
   const startedAt = Date.now();
-  console.log(`Spec waiting: ${port} ${metric} avg >= ${target} over ${durationSec}s`);
+  console.log(
+    `Spec waiting: ${port} ${metric} avg >= ${target} over ${durationSec}s` +
+    (timeoutMin ? `, timeout ${timeoutMin} min` : ", no timeout")
+  );
 
   // Tab closed or refreshed mid-wait
   res.on("close", () => {
@@ -269,7 +285,7 @@ app.post("/api/spec/wait", async (req, res) => {
   });
 
   try {
-    const result = await spec.waitUntilAvg({ port, metric, target, durationSec });
+    const result = await spec.waitUntilAvg({ port, metric, target, durationSec, timeoutMin });
     const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(
       `Spec reached: ${port} avg ${result.average.toFixed(2)} over ${result.samples} samples ` +

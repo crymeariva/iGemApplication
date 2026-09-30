@@ -73,6 +73,7 @@ async function executeNode(node) {
         metric: settings.metric || 'raw',
         target: Number(settings.target),
         durationSec: Number(settings.durationSec),
+        timeoutMin: settings.timeoutMin === '' ? null : settings.timeoutMin ?? null,
       }),
     });
   }
@@ -468,6 +469,17 @@ function App() {
         ) {
           alert(`Missing port, target, or duration on "${label}".`);
           return;
+        }
+        if (settings.timeoutMin != null && settings.timeoutMin !== '') {
+          const timeoutMin = Number(settings.timeoutMin);
+          if (!Number.isFinite(timeoutMin) || timeoutMin <= 0) {
+            alert(`Max wait on "${label}" must be a positive number of minutes, or blank for no limit.`);
+            return;
+          }
+          if (timeoutMin * 60 <= Number(settings.durationSec)) {
+            alert(`Max wait on "${label}" must be longer than its averaging duration.`);
+            return;
+          }
         }
         continue;
       }

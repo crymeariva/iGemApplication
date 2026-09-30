@@ -88,11 +88,22 @@ function getReading(portPath) {
   return { ok: true, port: reader.path, ...reader.lastReading };
 }
 
-function waitUntilAvg({ port, metric, target, durationSec }) {
+function windowAverage(samples, metric, since) {
+  const window = samples.filter((s) => s.at >= since);
+  if (window.length === 0) return null;
+  return {
+    average: window.reduce((sum, s) => sum + s[metric], 0) / window.length,
+    count: window.length,
+  };
+}
+
+// timeoutMin is optional; null/undefined waits with no limit.
+function waitUntilAvg({ port, metric, target, durationSec, timeoutMin }) {
   if (!port) return Promise.reject(noPortError());
   const path = port;
   ensureReader(path);
   const durationMs = durationSec * 1000;
+  const timeoutMs = timeoutMin ? timeoutMin * 60 * 1000 : null;
 
   if (activeWaits.has(path)) {
     return Promise.reject(
@@ -132,24 +143,35 @@ function waitUntilAvg({ port, metric, target, durationSec }) {
         return;
       }
 
-      if (now - startedAt < durationMs) return;
+      const result =
+        now - startedAt >= durationMs
+          ? windowAverage(samples, metric, now - durationMs)
+          : null;
 
-      const window = samples.filter((s) => s.at >= now - durationMs);
-
-      if (window.length === 0) return;
-
-      const average =
-        window.reduce((sum, s) => sum + s[metric], 0) / window.length;
-      if (average >= target) {
+      if (result && result.average >= target) {
         finish(resolve, {
           ok: true,
           port: path,
           metric,
           target,
           durationSec,
-          average,
-          samples: window.length,
+          average: result.average,
+          samples: result.count,
         });
+        return;
+      }
+
+      if (timeoutMs && now - startedAt >= timeoutMs) {
+        const avgText = result ? `average ${result.average.toFixed(2)}` : 'no average';
+        finish(
+          reject,
+          Object.assign(
+            new Error(
+              `Spectrometer timed out after ${timeoutMin} min: ${avgText} vs target ${target}`
+            ),
+            { timedOut: true }
+          )
+        );
       }
     }, 100);
 
