@@ -6,7 +6,7 @@ import {
   getBezierPath,
   useReactFlow,
 } from '@xyflow/react';
-import { DEFAULT_STEP_WAIT, formatStepWait } from '../../stepTiming';
+import { DEFAULT_STEP_WAIT, formatStepWait } from '../../utils/stepTiming';
 import './ConnectionEdge.css';
 
 /**
