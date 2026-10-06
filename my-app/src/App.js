@@ -27,6 +27,7 @@ import { useCycleSave } from './hooks/useCycleSave';
 import { useCycleLoader } from './hooks/useCycleLoader';
 import { useCycleDelete } from './hooks/useCycleDelete';
 import { applyCycleToCanvas } from './canvas/addCycleToCanvas';
+import { API_BASE } from './api/config';
 import {
   periRotationsToSteps,
   syringeMlToSteps,
@@ -65,7 +66,7 @@ async function executeNode(node) {
   const settings = node.data?.settings ?? {};
 
   if (node.type === 'spectrometer') {
-    return fetch('http://localhost:5001/api/spec/wait', {
+    return fetch(`${API_BASE}/spec/wait`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -78,7 +79,7 @@ async function executeNode(node) {
     });
   }
 
-  return fetch('http://localhost:5001/api/instr', {
+  return fetch(`${API_BASE}/instr`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(buildNodePayload(node)),
@@ -429,12 +430,12 @@ function App() {
 
     // Fan out: each device family has its own stop. Add thermo/etc. here later.
     await Promise.allSettled([
-      fetch('http://localhost:5001/api/cancel', {
+      fetch(`${API_BASE}/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
-      fetch('http://localhost:5001/api/spec/cancel', {
+      fetch(`${API_BASE}/spec/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

@@ -1,5 +1,4 @@
 const express = require("express");
-const cors = require("cors");
 const i2c = require("i2c-bus");
 const { Gpio } = require("onoff");
 const db = require("./database");
@@ -12,7 +11,6 @@ const PORT = 5001;
 const fs = require('fs');
 const path = require('path');
 
-app.use(cors());
 app.use(express.json());
 
 const CONTEXT_DIR = path.join(__dirname, 'context');
@@ -677,6 +675,19 @@ app.put("/api/cycles/:id", (req, res) => {
   }
 });
 
+// Serve the production frontend (npm run build) from the same port as the API.
+const BUILD_DIR = path.join(__dirname, '..', 'build');
+
+if (fs.existsSync(BUILD_DIR)) {
+  app.use(express.static(BUILD_DIR));
+  app.get(/^\/(?!api(\/|$)).*/, (_req, res) => {
+    res.sendFile(path.join(BUILD_DIR, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  if (fs.existsSync(BUILD_DIR)) {
+    console.log(`Serving frontend from ${BUILD_DIR} at http://localhost:${PORT}`);
+  }
 });
