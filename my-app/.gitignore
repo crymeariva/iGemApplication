@@ -6,6 +6,9 @@
 .pnp.js
 /server/node_modules
 
+# local SQLite database
+/server/data
+
 # testing
 /coverage
 

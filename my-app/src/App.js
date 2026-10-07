@@ -236,7 +236,7 @@ function App() {
             }
             aria-label="Toggle menu"
           >
-            â˜°
+            ☰
           </button>
 
           <h1 className="app-header__title">
@@ -303,7 +303,7 @@ function App() {
         >
           <span className="run-status__count">
             Cycle {runStatus.cycle} of {runStatus.cycleTotal}
-            {' Â· '}
+            {' · '}
             {runStatus.current} of {runStatus.total}
           </span>
           {runStatus.error ? (
@@ -317,7 +317,7 @@ function App() {
                 : runStatus.label}
             </span>
           ) : (
-            <span className="run-status__msg">Startingâ€¦</span>
+            <span className="run-status__msg">Starting…</span>
           )}
           {(runStatus.error || runStatus.aborted) && (
             <button
