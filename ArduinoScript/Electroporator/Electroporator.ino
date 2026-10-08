@@ -1,6 +1,6 @@
-// D2 charge
-// D3 discharge
-// D4 read
+// D2 charge/BLUE
+// D3 discharge/RED
+// D4 read/YELLOW
 // D5 is relay, dont touch
 
 
@@ -13,7 +13,7 @@ const uint8_t PIN_ADC = A0; //need voltage divider circuit
 
 /* Placeholders */
 const float DIVIDER_RATIO = 5.0; // placeholder
-const unsigned long READ_PULSE_MS = 500; // can change, needs to be less than 1 sec
+const unsigned long READ_PULSE_MS = 5; // can change, needs to be less than 1 sec
 const unsigned long SAMPLE_INTERVAL = 2000; // how often to interrupt charge/discharge
 const float MAX_VOLTAGE = 1400;
 
@@ -307,14 +307,14 @@ void loop() {
           }
 
         } else if (resumeState == DISCH_SQUARE) {
-            if (lastVoltage <= minVolts) {
-              targetVolts = MAX_VOLTAGE;
-              state = CHARGE_VOLT;
-              stateStart = now;
-              lastSample = now;
-              digitalWrite(PIN_CHARGE, HIGH);
-              Serial.println("DISCHARGE_DONE_AUTOCHARGE");
-            } else {
+          if (lastVoltage <= minVolts) {
+          targetVolts = MAX_VOLTAGE;
+          state = CHARGE_VOLT;
+          stateStart = now;
+          lastSample = now;
+          digitalWrite(PIN_CHARGE, HIGH);
+          Serial.println("DISCHARGE_DONE_AUTOCHARGE");
+        } else {
             // Not there yet — start the next burst.
             burstStart = now;
             state = DISCH_SQUARE;
