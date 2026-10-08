@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { periRotationsToSteps } from '../../pumpCalibration';
+import NodeHeader from './NodeHeader';
 import './HardwareNode.css';
 
 const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
@@ -25,6 +26,10 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
     );
 
     const [message, setMessage] = useState("");
+
+    const [expanded, setExpanded] = useState(
+        () => !(data.settings?.rotations && data.settings?.boardVal && data.settings?.axis && data.settings?.direction)
+    );
 
     useEffect(() => {
         setRotations(data.settings?.rotations ?? '');
@@ -136,75 +141,79 @@ const PeristalticPumpNode = ({ data, isConnectable, selected }) => {
             />
 
             <div className="hardware-node-content">
-                <div className="hardware-node-header">
-                    {data.label || 'Peristaltic Pump'}
-                </div>
+                <NodeHeader
+                    label={data.label || 'Peristaltic Pump'}
+                    expanded={expanded}
+                    onToggle={() => setExpanded((v) => !v)}
+                />
 
-                <div className="hardware-node-settings">
-                    <div className="setting-item">
-                        <span className="setting-key">Rotations:</span>
-                        <input
-                            type="number"
-                            className="setting-input"
-                            value={rotations}
-                            min={0.1}
-                            step={0.1}
-                            onChange={handleRotationsChange}
-                            placeholder="x"
-                        />
+                {expanded && (
+                    <div className="hardware-node-settings">
+                        <div className="setting-item">
+                            <span className="setting-key">Rotations:</span>
+                            <input
+                                type="number"
+                                className="setting-input"
+                                value={rotations}
+                                min={0.1}
+                                step={0.1}
+                                onChange={handleRotationsChange}
+                                placeholder="x"
+                            />
+                        </div>
+                        <div className="setting-item">
+                            <span className="setting-key">Board (1-4):</span>
+                            <select
+                                className="setting-select"
+                                value={boardVal}
+                                onChange={handleBoardChange}
+                            >
+                                <option value="">Select</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                            </select>
+                        </div>
+                        <div className="setting-item">
+                            <span className="setting-key">Axis (X, Y, Z, A):</span>
+                            <select
+                                className="setting-select"
+                                value={axisVal}
+                                onChange={handleAxisChange}
+                            >
+                                <option value="">Select</option>
+                                <option value="X">X</option>
+                                <option value="Y">Y</option>
+                                <option value="Z">Z</option>
+                                <option value="A">A</option>
+                            </select>
+                        </div>
+                        <div className="setting-item">
+                            <span className="setting-key">Direction (Forward, Reverse):</span>
+                            <select
+                                className="setting-select"
+                                value={directionVal}
+                                onChange={handleDirectionChange}
+                            >
+                                <option value="">Select</option>
+                                <option value="up">Forward</option>
+                                <option value="down">Reverse</option>
+                            </select>
+                        </div>
+                        <div className="setting-item">
+                            <span className="setting-key">Speed:</span>
+                            <select
+                                className="setting-select"
+                                value={speedVal}
+                                onChange={handleSpeedChange}
+                            >
+                                <option value="S">Slow</option>
+                                <option value="F">Fast</option>
+                            </select>
+                        </div>
                     </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Board (1-4):</span>
-                        <select
-                            className="setting-select"
-                            value={boardVal}
-                            onChange={handleBoardChange}
-                        >
-                            <option value="">Select</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                        </select>
-                    </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Axis (X, Y, Z, A):</span>
-                        <select
-                            className="setting-select"
-                            value={axisVal}
-                            onChange={handleAxisChange}
-                        >
-                            <option value="">Select</option>
-                            <option value="X">X</option>
-                            <option value="Y">Y</option>
-                            <option value="Z">Z</option>
-                            <option value="A">A</option>
-                        </select>
-                    </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Direction (Forward, Reverse):</span>
-                        <select
-                            className="setting-select"
-                            value={directionVal}
-                            onChange={handleDirectionChange}
-                        >
-                            <option value="">Select</option>
-                            <option value="up">Forward</option>
-                            <option value="down">Reverse</option>
-                        </select>
-                    </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Speed:</span>
-                        <select
-                            className="setting-select"
-                            value={speedVal}
-                            onChange={handleSpeedChange}
-                        >
-                            <option value="S">Slow</option>
-                            <option value="F">Fast</option>
-                        </select>
-                    </div>
-                </div>
+                )}
             </div>
 
             <div className="node-actions">

@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { syringeMlToSteps } from '../../pumpCalibration';
+import NodeHeader from './NodeHeader';
 import './HardwareNode.css';
 
 const SyringePumpNode = ({ data, isConnectable, selected }) => {
@@ -20,6 +21,10 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
 
   const [directionVal, setDirection] = useState(
     data.settings?.direction || ''
+  );
+
+  const [expanded, setExpanded] = useState(
+    () => !(data.settings?.volumeMl && data.settings?.boardVal && data.settings?.axis && data.settings?.direction)
   );
 
   useEffect(() => {
@@ -125,64 +130,68 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
       />
 
       <div className="hardware-node-content">
-        <div className="hardware-node-header">
-          {data.label || 'Syringe Pump'}
-        </div>
+        <NodeHeader
+          label={data.label || 'Syringe Pump'}
+          expanded={expanded}
+          onToggle={() => setExpanded((v) => !v)}
+        />
 
-        <div className="hardware-node-settings">
-          <div className="setting-item">
-            <span className="setting-key">Volume (mL):</span>
-            <input
-              type="number"
-              className="setting-input"
-              value={volumeMl}
-              min={0.1}
-              step={0.1}
-              onChange={handleVolumeChange}
-              placeholder="1"
-            />
+        {expanded && (
+          <div className="hardware-node-settings">
+            <div className="setting-item">
+              <span className="setting-key">Volume (mL):</span>
+              <input
+                type="number"
+                className="setting-input"
+                value={volumeMl}
+                min={0.1}
+                step={0.1}
+                onChange={handleVolumeChange}
+                placeholder="1"
+              />
+            </div>
+            <div className="setting-item">
+              <span className="setting-key">Board (1-4):</span>
+              <select
+                className="setting-select"
+                value={boardVal}
+                onChange={handleBoardChange}
+              >
+                <option value="">Select</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </div>
+            <div className="setting-item">
+              <span className="setting-key">Axis (X, Y, Z, A):</span>
+              <select
+                className="setting-select"
+                value={axisVal}
+                onChange={handleAxisChange}
+              >
+                <option value="">Select</option>
+                <option value="X">X</option>
+                <option value="Y">Y</option>
+                <option value="Z">Z</option>
+                <option value="A">A</option>
+              </select>
+            </div>
+            <div className="setting-item">
+              <span className="setting-key">Dispense / Aspirate:</span>
+              <select
+                className="setting-select"
+                value={directionVal}
+                onChange={handleDirectionChange}
+              >
+                <option value="">Select</option>
+                <option value="up">Dispense</option>
+                <option value="down">Aspirate</option>
+              </select>
+            </div>
           </div>
-          <div className="setting-item">
-            <span className="setting-key">Board (1-4):</span>
-            <select
-              className="setting-select"
-              value={boardVal}
-              onChange={handleBoardChange}
-            >
-              <option value="">Select</option>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-            </select>
-          </div>
-          <div className="setting-item">
-            <span className="setting-key">Axis (X, Y, Z, A):</span>
-            <select
-              className="setting-select"
-              value={axisVal}
-              onChange={handleAxisChange}
-            >
-              <option value="">Select</option>
-              <option value="X">X</option>
-              <option value="Y">Y</option>
-              <option value="Z">Z</option>
-              <option value="A">A</option>
-            </select>
-          </div>
-          <div className="setting-item">
-            <span className="setting-key">Dispense / Aspirate:</span>
-            <select
-              className="setting-select"
-              value={directionVal}
-              onChange={handleDirectionChange}
-            >
-              <option value="">Select</option>
-              <option value="up">Dispense</option>
-              <option value="down">Aspirate</option>
-            </select>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="node-actions">

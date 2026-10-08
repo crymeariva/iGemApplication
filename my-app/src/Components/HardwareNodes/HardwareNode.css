@@ -149,3 +149,82 @@ input::-webkit-outer-spin-button {
 .hardware-node .node-actions .node-action-btn:last-child {
   border-radius: 0 0 9px 0;
 }
+
+.hardware-node .node-message--error {
+  color: #ef4444;
+}
+
+.setting-toggle {
+  display: flex;
+  width: 88px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.setting-toggle button {
+  flex: 1;
+  padding: 6px 0;
+  font-size: .75rem;
+  font-family: inherit;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 0;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.setting-toggle button + button {
+  border-left: 1px solid var(--color-border);
+}
+
+.setting-toggle button.active {
+  background: #0ea5e9;
+  color: #fff;
+}
+
+.hardware-node .node-actions--top .node-action-btn,
+.hardware-node .node-actions--top .node-action-btn:first-child,
+.hardware-node .node-actions--top .node-action-btn:last-child {
+  border-bottom: none;
+  border-radius: 0;
+}
+
+.node-actions--top + .node-actions--bottom {
+  margin-top: 0;
+}
+
+.hardware-node-header--collapsible {
+  position: relative;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.node-collapse-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  padding: 0;
+  font-size: .875rem;
+  line-height: 1.4;
+  background: none;
+  border: 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: transform .15s, color .15s;
+}
+
+.node-collapse-btn:hover {
+  color: var(--color-text);
+}
+
+.node-collapse-btn.collapsed {
+  transform: rotate(-90deg);
+}
+
+.hardware-node-header:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
