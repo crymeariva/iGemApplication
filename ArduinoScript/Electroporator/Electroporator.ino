@@ -108,10 +108,11 @@ void startDischSquare(unsigned long burst, float minV) {
   digitalWrite(PIN_DISCH, HIGH);
 }
 
-// Abort
+// Abort: the relay is the master power, so every abort cuts it too
 void stopAll() {
   state = IDLE;
   allOff();
+  digitalWrite(PIN_RELAY, LOW);
 }
 
 /* Command Parsing */

@@ -4,6 +4,7 @@ const i2c = require("i2c-bus");
 const { Gpio } = require("onoff");
 const db = require("./database");
 const spec = require("./spectrometer");
+const electro = require("./electroporator");
 const { chat, listModels } = require("./llm");
 
 const app = express();
@@ -307,6 +308,59 @@ app.post("/api/spec/wait", async (req, res) => {
 app.post("/api/spec/cancel", (req, res) => {
   const cancelled = spec.cancelWait(req.body?.port);
   res.json({ ok: true, cancelled });
+});
+
+/**
+ * Electroporator (serial). Status is polled by the node; actions switch the relay on/off around each phase.
+ */
+app.get("/api/electro/status", (req, res) => {
+  res.json(electro.getStatus(req.query.port));
+});
+
+function electroAction(fn, okMessage, { stopOnDisconnect = false } = {}) {
+  return async (req, res) => {
+    const { port, ...settings } = req.body ?? {};
+    if (!port) {
+      return res.status(400).json({ ok: false, error: "Select a port" });
+    }
+
+    // Tab closed or refreshed mid-run: shut the unit off rather than leave it running unattended.
+    if (stopOnDisconnect) {
+      res.on("close", () => {
+        if (!res.writableEnded) {
+          console.log(`Electroporator run dropped: client disconnected (${port})`);
+          electro.stop(port);
+        }
+      });
+    }
+
+    try {
+      const result = await fn(port, settings);
+      if (res.destroyed) return;
+      res.json({ ok: true, message: typeof result === "string" ? result : okMessage });
+    } catch (err) {
+      if (res.destroyed) return;
+      if (err.cancelled) {
+        return res.json({ ok: false, cancelled: true, error: "Stopped" });
+      }
+      console.error(`Electroporator ${req.path} failed on ${port}:`, err.message);
+      res.status(err.badRequest ? 400 : 500).json({ ok: false, error: err.message });
+    }
+  };
+}
+
+app.post("/api/electro/charge", electroAction(electro.charge, "Charging"));
+app.post("/api/electro/discharge", electroAction(electro.discharge, "Discharging"));
+app.post("/api/electro/run", electroAction(electro.run, "Run complete", { stopOnDisconnect: true }));
+
+// Port is optional here: without one, every open electroporator is stopped.
+app.post("/api/electro/stop", async (req, res) => {
+  try {
+    const stopped = await electro.stop(req.body?.port);
+    res.json({ ok: true, message: stopped ? "Stopped" : "Nothing to stop" });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 /**
