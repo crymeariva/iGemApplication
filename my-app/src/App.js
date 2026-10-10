@@ -1,5 +1,5 @@
 import './styles/App.css';
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   ReactFlow,
   applyNodeChanges,
@@ -11,7 +11,7 @@ import {
 
 import '@xyflow/react/dist/style.css';
 
-import LoadCycleDialog from './Components/LoadCycleDialog';
+import LoadCycleDialog from './Components/LoadCycleDialog/LoadCycleDialog';
 import ThermometerNode from './Components/HardwareNodes/ThermometerNode';
 import SyringePumpNode from './Components/HardwareNodes/SyringePumpNode';
 import ElectroporatorNode from './Components/HardwareNodes/ElectroporatorNode';
@@ -26,146 +26,11 @@ import AgentSettingsDialog from './Components/AgentSettingsDialog/AgentSettingsD
 import { useCycleSave } from './hooks/useCycleSave';
 import { useCycleLoader } from './hooks/useCycleLoader';
 import { useCycleDelete } from './hooks/useCycleDelete';
-import { applyCycleToCanvas } from './canvas/addCycleToCanvas';
-import {
-  periRotationsToSteps,
-  syringeMlToSteps,
-} from './pumpCalibration';
-import {
-  DEFAULT_STEP_WAIT,
-  abortableSleep,
-  formatCountdown,
-  stepWaitMs,
-} from './stepTiming';
-
-const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump', 'spectrometer']);
-
-function buildNodePayload(node) {
-  const settings = node.data?.settings ?? {};
-  const steps =
-    node.type === 'peristalticPump'
-      ? periRotationsToSteps(settings.rotations)
-      : node.type === 'syringePump'
-        ? syringeMlToSteps(settings.volumeMl)
-        : Number(settings.steps);
-
-  return {
-    type: 'Motor',
-    axis: settings.axis,
-    board: Number(settings.boardVal),
-    compInstr: {
-      steps,
-      Direction: settings.direction,
-      Speed: settings.speed || 'S',
-    },
-  };
-}
-
-async function executeNode(node) {
-  const settings = node.data?.settings ?? {};
-
-  if (node.type === 'spectrometer') {
-    return fetch('http://localhost:5001/api/spec/wait', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        port: settings.port,
-        metric: settings.metric || 'raw',
-        target: Number(settings.target),
-        durationSec: Number(settings.durationSec),
-        timeoutMin: settings.timeoutMin === '' ? null : settings.timeoutMin ?? null,
-      }),
-    });
-  }
-
-  return fetch('http://localhost:5001/api/instr', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildNodePayload(node)),
-  });
-}
-
-function getNodeOrder(nodes, edges) {
-  const runnable = nodes.filter((n) => RUNNABLE_TYPES.has(n.type));
-
-  if (runnable.length === 0) {
-    return { ok: false, error: 'No runnable nodes on the canvas.' };
-  }
-
-  if (runnable.length === 1) {
-    return { ok: true, order: runnable };
-  }
-
-  const runnableIds = new Set(runnable.map((n) => n.id));
-  const nodeById = new Map(runnable.map((n) => [n.id, n]));
-
-  const chainEdges = edges.filter(
-    (e) => runnableIds.has(e.source) && runnableIds.has(e.target)
-  );
-
-  const indegree = new Map();
-  const outdegree = new Map();
-  const nextBySource = new Map();
-
-  for (const id of runnableIds) {
-    indegree.set(id, 0);
-    outdegree.set(id, 0);
-  }
-
-  for (const edge of chainEdges) {
-    if (outdegree.get(edge.source) >= 1) {
-      return {
-        ok: false,
-        error: 'Each node can only have one outgoing connection.',
-      };
-    }
-    if (indegree.get(edge.target) >= 1) {
-      return {
-        ok: false,
-        error: 'Each node can only have one incoming connection.',
-      };
-    }
-
-    indegree.set(edge.target, indegree.get(edge.target) + 1);
-    outdegree.set(edge.source, outdegree.get(edge.source) + 1);
-    nextBySource.set(edge.source, edge.target);
-  }
-
-  const heads = runnable.filter((n) => indegree.get(n.id) === 0);
-
-  if (heads.length !== 1) {
-    return {
-      ok: false,
-      error:
-        heads.length === 0
-          ? 'Node chain has a cycle (no start node).'
-          : 'Connect nodes into one chain (multiple start nodes found).',
-    };
-  }
-
-  const order = [];
-  const visited = new Set();
-  let currentId = heads[0].id;
-
-  while (currentId) {
-    if (visited.has(currentId)) {
-      return { ok: false, error: 'Node chain has a cycle.' };
-    }
-
-    visited.add(currentId);
-    order.push(nodeById.get(currentId));
-    currentId = nextBySource.get(currentId);
-  }
-
-  if (order.length !== runnable.length) {
-    return {
-      ok: false,
-      error: 'All runnable nodes must be connected in one chain (floating node found).',
-    };
-  }
-
-  return { ok: true, order };
-}
+import { useDarkMode } from './hooks/useDarkMode';
+import { useCanvasDrop } from './hooks/useCanvasDrop';
+import { useCycleRun } from './hooks/useCycleRun';
+import { applyCycleToCanvas } from './utils/addCycleToCanvas';
+import { DEFAULT_STEP_WAIT } from './utils/stepTiming';
 
 function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(true);
@@ -173,22 +38,16 @@ function App() {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
 
-  const nodeId = useRef(0);
-  const cancelRunRef = useRef(false);
-
-  const [reactFlowInstance, setReactFlowInstance] = useState(null);
-
   const [showSystemPanel, setShowSystemPanel] = useState(false);
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [runStatus, setRunStatus] = useState(null);
   const [cycleCount, setCycleCount] = useState(1);
   const [isAgentOpen, setIsAgentOpen] = useState(false);
   const [showAgentSettings, setShowAgentSettings] = useState(false);
 
-  const [isDarkMode, setIsDarkMode] = useState(
-    () => document.documentElement.getAttribute('data-theme') === 'dark'
-  );
+  /**
+   * Dark mode hook.
+   */
+  const { isDarkMode, onToggleDarkMode } = useDarkMode();
 
   /**
    * Updates node settings.
@@ -213,6 +72,14 @@ function App() {
       })
     );
   }, []);
+
+  /**
+   * Canvas drag-and-drop hook.
+   */
+  const { onInit, onDragOver, onDrop, resetNodeIds } = useCanvasDrop({
+    setNodes,
+    updateNodeSettings,
+  });
 
   /**
    * Cycle loading hook.
@@ -324,82 +191,11 @@ function App() {
     setNodes([]);
     setEdges([]);
 
-    nodeId.current = 0;
+    resetNodeIds();
 
     setActiveCycleId(null);
     setActiveCycleName('');
-  }, [setActiveCycleId, setActiveCycleName]);
-
-  /**
-   * Toggles dark mode.
-   */
-  const onToggleDarkMode = useCallback(() => {
-    const el = document.documentElement;
-
-    if (el.getAttribute('data-theme') === 'dark') {
-      el.removeAttribute('data-theme');
-      setIsDarkMode(false);
-    } else {
-      el.setAttribute('data-theme', 'dark');
-      setIsDarkMode(true);
-    }
-  }, []);
-
-  /**
-   * Handles drag over.
-   */
-  const onDragOver = useCallback((event) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  /**
-   * Handles node drop.
-   */
-  const onDrop = useCallback(
-    (event) => {
-      event.preventDefault();
-
-      if (!reactFlowInstance) return;
-
-      const raw = event.dataTransfer.getData(
-        'application/reactflow'
-      );
-
-      if (!raw) return;
-
-      let parsed;
-
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        return;
-      }
-
-      const position =
-        reactFlowInstance.screenToFlowPosition({
-          x: event.clientX,
-          y: event.clientY,
-        });
-
-      const newId = `node-${nodeId.current++}`;
-
-      setNodes((nds) =>
-        nds.concat({
-          id: newId,
-          type: parsed.type ?? 'default',
-          position,
-          data: {
-            label: parsed.label ?? 'Node',
-            settings: parsed.settings ?? {},
-            onSettingsChange: (update) =>
-              updateNodeSettings(newId, update),
-          },
-        })
-      );
-    },
-    [reactFlowInstance, updateNodeSettings]
-  );
+  }, [resetNodeIds, setActiveCycleId, setActiveCycleName]);
 
   /**
    * Prevent duplicate source connections.
@@ -421,170 +217,13 @@ function App() {
   );
 
   /**
-   * Aborts any in-progress Send All run and halts hardware on all boards.
+   * Send All / Abort hook.
    */
-  const onAbort = useCallback(async () => {
-    cancelRunRef.current = true;
-    setRunStatus((prev) => (prev ? { ...prev, aborted: true, error: null } : prev));
-
-    // Fan out: each device family has its own stop. Add thermo/etc. here later.
-    await Promise.allSettled([
-      fetch('http://localhost:5001/api/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      }),
-      fetch('http://localhost:5001/api/spec/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      }),
-    ]);
-  }, []);
-
-  /**
-   * Walks the node chain and sends each instruction in order.
-   * After each finished move, waits using the delay on the edge to the next node.
-   * Repeats the full chain `cycleCount` times.
-   */
-  const onSendAll = useCallback(async () => {
-    if (isRunning) return;
-
-    const result = getNodeOrder(nodes, edges);
-    if (!result.ok) {
-      alert(result.error);
-      return;
-    }
-
-    for (const node of result.order) {
-      const settings = node.data?.settings ?? {};
-      const label = node.data?.label ?? node.id;
-
-      if (node.type === 'spectrometer') {
-        if (
-          !settings.port ||
-          !Number.isFinite(Number(settings.target)) ||
-          !Number.isFinite(Number(settings.durationSec)) ||
-          Number(settings.durationSec) <= 0
-        ) {
-          alert(`Missing port, target, or duration on "${label}".`);
-          return;
-        }
-        if (settings.timeoutMin != null && settings.timeoutMin !== '') {
-          const timeoutMin = Number(settings.timeoutMin);
-          if (!Number.isFinite(timeoutMin) || timeoutMin <= 0) {
-            alert(`Max wait on "${label}" must be a positive number of minutes, or blank for no limit.`);
-            return;
-          }
-          if (timeoutMin * 60 <= Number(settings.durationSec)) {
-            alert(`Max wait on "${label}" must be longer than its averaging duration.`);
-            return;
-          }
-        }
-        continue;
-      }
-      if (!settings.boardVal || !settings.axis || !settings.direction) {
-        alert(`Missing board/axis/direction on "${label}".`);
-        return;
-      }
-
-      if (node.type === 'syringePump' && !syringeMlToSteps(settings.volumeMl)) {
-        alert(`Missing or invalid volume (mL) on "${label}".`);
-        return;
-      }
-
-      if (node.type === 'peristalticPump' && !periRotationsToSteps(settings.rotations)) {
-        alert(`Missing or invalid rotations on "${label}".`);
-        return;
-      }
-    }
-
-    const totalCycles = Math.max(1, Number(cycleCount) || 1);
-    const stepTotal = result.order.length;
-
-    cancelRunRef.current = false;
-    setIsRunning(true);
-    setRunStatus({
-      current: 0,
-      total: stepTotal,
-      cycle: 1,
-      cycleTotal: totalCycles,
-      label: null,
-      board: null,
-    });
-
-    try {
-      outer: for (let c = 1; c <= totalCycles; c++) {
-        for (let i = 0; i < stepTotal; i++) {
-          if (cancelRunRef.current) break outer;
-
-          const node = result.order[i];
-          const settings = node.data?.settings ?? {};
-
-          setRunStatus({
-            current: i + 1,
-            total: stepTotal,
-            cycle: c,
-            cycleTotal: totalCycles,
-            label: node.data?.label ?? node.id,
-            board: settings.boardVal ?? (node.type === 'spectrometer' ? 'spec' : '?'),
-          });
-
-          const res = await executeNode(node);
-
-          if (cancelRunRef.current) break outer;
-
-          if (!res.ok) {
-            const errBody = await res.json().catch(() => ({}));
-            if (errBody.cancelled || cancelRunRef.current) break outer;
-            throw new Error(
-              errBody.error || `Send failed for ${node.data?.label ?? node.id}`
-            );
-          }
-
-          if (i < stepTotal - 1) {
-            const nextId = result.order[i + 1].id;
-            const edge = edges.find(
-              (e) => e.source === node.id && e.target === nextId
-            );
-            const waitMs = stepWaitMs(edge?.data);
-            if (waitMs > 0) {
-              await abortableSleep(waitMs, cancelRunRef, (remainingMs) => {
-                const label = `Waiting ${formatCountdown(remainingMs)}`;
-                setRunStatus((prev) => {
-                  if (!prev || prev.label === label) return prev;
-                  return { ...prev, label, board: null };
-                });
-              });
-              if (cancelRunRef.current) break outer;
-            }
-          }
-        }
-      }
-
-      if (cancelRunRef.current) {
-        setRunStatus((prev) =>
-          prev ? { ...prev, aborted: true, error: null } : prev
-        );
-      } else {
-        setRunStatus(null);
-      }
-    } catch (err) {
-      console.error(err);
-      setRunStatus((prev) => ({
-        ...(prev ?? {
-          current: 0,
-          total: stepTotal,
-          cycle: 1,
-          cycleTotal: totalCycles,
-        }),
-        error: err.message || 'Send All failed.',
-        aborted: false,
-      }));
-    } finally {
-      setIsRunning(false);
-    }
-  }, [isRunning, nodes, edges, cycleCount]);
+  const { isRunning, runStatus, setRunStatus, onSendAll, onAbort } = useCycleRun({
+    nodes,
+    edges,
+    cycleCount,
+  });
 
   return (
     <div className="App">
@@ -744,7 +383,7 @@ function App() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onInit={setReactFlowInstance}
+          onInit={onInit}
           onDrop={onDrop}
           onDragOver={onDragOver}
           isValidConnection={isValidConnection}

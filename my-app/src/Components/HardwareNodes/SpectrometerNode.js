@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useState } from 'react';
+import { API_BASE } from '../../api/config';
 import { Handle, Position } from '@xyflow/react';
 import NodeHeader from './NodeHeader';
 import './HardwareNode.css';
@@ -37,7 +38,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
     }, [data.settings?.port]);
 
     const refreshPorts = useCallback(() => {
-        fetch('http://localhost:5001/api/spec/ports')
+        fetch(`${API_BASE}/spec/ports`)
             .then((res) => res.json())
             .then((result) => {
                 if (result.ok) setPorts(result.ports);
@@ -60,7 +61,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
         const tick = async () => {
             try {
                 const res = await fetch(
-                    `http://localhost:5001/api/spec/reading?port=${encodeURIComponent(port)}`
+                    `${API_BASE}/spec/reading?port=${encodeURIComponent(port)}`
                 );
                 const result = await res.json();
                 if (!cancelled) {
@@ -119,7 +120,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
     const CallWait = async () => {
         setMessage('Waiting...');
         try {
-            const res = await fetch('http://localhost:5001/api/spec/wait', {
+            const res = await fetch(`${API_BASE}/spec/wait`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -149,7 +150,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
 
     const CallCancel = async () => {
         try {
-            const res = await fetch('http://localhost:5001/api/spec/cancel', {
+            const res = await fetch(`${API_BASE}/spec/cancel`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ port }),

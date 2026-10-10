@@ -1,7 +1,7 @@
 /**
  * API helpers for the lab assistant agent.
  */
-const API_BASE = 'http://localhost:5001/api';
+import { API_BASE } from './config';
 
 async function parseJsonSafe(res) {
   return await res.json().catch(() => null);

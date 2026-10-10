@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from 'react';
+import { API_BASE } from '../../api/config';
 import { Handle, Position } from '@xyflow/react';
 import { syringeMlToSteps } from '../../pumpCalibration';
 import NodeHeader from './NodeHeader';
@@ -47,7 +48,7 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
 
   const CallBackend = async (payload) => {
     try {
-      const res = await fetch("http://localhost:5001/api/instr", {
+      const res = await fetch(`${API_BASE}/instr`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -64,7 +65,7 @@ const SyringePumpNode = ({ data, isConnectable, selected }) => {
 
   const CallCancel = async () => {
     try {
-      const res = await fetch("http://localhost:5001/api/cancel", {
+      const res = await fetch(`${API_BASE}/cancel`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
