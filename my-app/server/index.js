@@ -1,6 +1,4 @@
 const express = require("express");
-const i2c = require("i2c-bus");
-const { Gpio } = require("onoff");
 const db = require("./database");
 const spec = require("./spectrometer");
 const electro = require("./electroporator");
@@ -29,8 +27,6 @@ const MOSMAGE_CONTEXT = fs.readFileSync(
   'utf-8'
 );
 
-// Open I2C bus (bus 1 on Raspberry Pi)
-const bus = i2c.openSync(1);
 const SLAVE_ADDRESS = 0x04;
 const TCA_ADDRESS = 0x70;  // I2C multiplexer
 
@@ -41,11 +37,25 @@ const TCA_ADDRESS = 0x70;  // I2C multiplexer
 // these originally were 17,27,22 for pi3, Changes in PI will break here
 // Current Pi (BCM 17/27/22): 529, 539, 534
 // was 588, 598, 593 on Pi5
-const pins = [
-  new Gpio(529, "out"),
-  new Gpio(539, "out"),
-  new Gpio(534, "out"),
-];
+let bus = null;
+let pins = [];
+
+// I2C and GPIO only exist on the Pi. Elsewhere (e.g. a Windows PC) the server
+// still runs so serial devices work; motor routes report the hardware as unavailable.
+try {
+  const i2c = require("i2c-bus");
+  const { Gpio } = require("onoff");
+  bus = i2c.openSync(1); // I2C bus 1 on Raspberry Pi
+  pins = [
+    new Gpio(529, "out"),
+    new Gpio(539, "out"),
+    new Gpio(534, "out"),
+  ];
+} catch (err) {
+  bus = null;
+  pins = [];
+  console.warn(`Motor hardware unavailable (${err.message}). Motor routes are disabled.`);
+}
 
 const MOTOR_POLL_MS = 100;
 const MOTOR_BUSY_GRACE_MS = 3000; // wait up to this long to see "busy" after send
@@ -70,6 +80,7 @@ function writeBits(bits) {
 }
 
 function selectBoard(board) {
+  if (!bus) throw new Error("Motor hardware (I2C) not available on this machine");
   const bits = to3BitArray(board);
   writeBits(bits);
   bus.writeByteSync(TCA_ADDRESS, 0x00, 1 << board);
@@ -739,7 +750,14 @@ if (fs.existsSync(BUILD_DIR)) {
   });
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, (err) => {
+  if (err) {
+    console.error(`Server failed to start on port ${PORT}: ${err.message}`);
+    if (err.code === "EADDRINUSE") {
+      console.error("Another server is already running on this port. Stop it first.");
+    }
+    process.exit(1);
+  }
   console.log(`Server running on port ${PORT}`);
   if (fs.existsSync(BUILD_DIR)) {
     console.log(`Serving frontend from ${BUILD_DIR} at http://localhost:${PORT}`);

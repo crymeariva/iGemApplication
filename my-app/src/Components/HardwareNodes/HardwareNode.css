@@ -154,6 +154,12 @@ input::-webkit-outer-spin-button {
   color: #ef4444;
 }
 
+.hardware-node .setting-note {
+  font-size: .75rem;
+  opacity: .7;
+  margin: 0;
+}
+
 .setting-toggle {
   display: flex;
   width: 88px;

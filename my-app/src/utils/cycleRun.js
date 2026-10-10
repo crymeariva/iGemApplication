@@ -3,7 +3,7 @@ import {
   syringeMlToSteps,
 } from '../pumpCalibration';
 
-export const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump', 'spectrometer']);
+export const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump', 'spectrometer', 'electroporator']);
 
 /**
  * Orders the runnable nodes into a single chain by following edges.

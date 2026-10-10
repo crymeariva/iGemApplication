@@ -233,7 +233,8 @@ async function discharge(path, settings) {
 }
 
 /**
- * Full sequence: charge, wait for CHARGE_DONE, discharge, wait for the discharge to finish.
+ * Full sequence: charge, wait for CHARGE_DONE, discharge, wait for the discharge to finish
+ * (for square wave, that includes the board's automatic recharge to max).
  * Any failure (error, timeout, stop, disconnect) shuts everything off.
  */
 async function run(path, { charge: chargeSettings, discharge: dischargeSettings } = {}) {
@@ -248,9 +249,11 @@ async function run(path, { charge: chargeSettings, discharge: dischargeSettings 
         await waitForDone(board, ['CHARGE_DONE']);
         await startPhase(board, dischargeCmd, 'discharging');
         const done = await waitForDone(board, ['DISCHARGE_DONE', 'DISCHARGE_DONE_AUTOCHARGE']);
-        return done === 'DISCHARGE_DONE_AUTOCHARGE'
-            ? 'Discharge done, recharging'
-            : 'Run complete';
+        if (done === 'DISCHARGE_DONE') return 'Run complete';
+
+        // Square wave recharges to max on its own; the step isn't done until that finishes.
+        await waitForDone(board, ['CHARGE_DONE']);
+        return 'Run complete, recharged to max';
     } catch (err) {
         // A cancelled run was ended by stop(), which already shut everything off.
         if (!err.cancelled) await stop(path);

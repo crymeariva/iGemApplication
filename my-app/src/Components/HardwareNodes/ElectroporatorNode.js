@@ -19,7 +19,7 @@ const num = (v) => (filled(v) ? Number(v) : NaN);
 const isComplete = (s) =>
     (s.chargeMode === 'volt' ? filled(s.chargeV) : filled(s.chargeMin ?? DEFAULT_CHARGE_MIN)) &&
     filled(s.minV) &&
-    ((s.dischargeMode || 'exp') === 'exp' || (filled(s.burstMs) && filled(s.rechargeV)));
+    ((s.dischargeMode || 'exp') === 'exp' || filled(s.burstMs));
 
 const ElectroporatorNode = ({ data, isConnectable, selected }) => {
     const [port, setPort] = useState(data.settings?.port || '');
@@ -29,8 +29,6 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
     const [dischargeMode, setDischargeMode] = useState(data.settings?.dischargeMode || 'exp');
     const [minV, setMinV] = useState(data.settings?.minV ?? '');
     const [burstMs, setBurstMs] = useState(data.settings?.burstMs ?? '');
-    const [rechargeV, setRechargeV] = useState(data.settings?.rechargeV ?? '');
-
     const [ports, setPorts] = useState([]);
     const [live, setLive] = useState(null);
     const [message, setMessage] = useState('');
@@ -46,7 +44,6 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
         setDischargeMode(s.dischargeMode || 'exp');
         setMinV(s.minV ?? '');
         setBurstMs(s.burstMs ?? '');
-        setRechargeV(s.rechargeV ?? '');
     }, [data.settings]);
 
     const save = (key, value, setter) => {
@@ -124,15 +121,11 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
             if (filled(burstMs) && !(b >= BURST_MIN_MS && b <= BURST_MAX_MS)) {
                 return `Burst must be ${BURST_MIN_MS}–${BURST_MAX_MS} ms`;
             }
-            const r = num(rechargeV);
-            if (filled(rechargeV) && !(r <= MAX_VOLTAGE && (!filled(minV) || r > v))) {
-                return `Recharge must be above min voltage and ≤ ${MAX_VOLTAGE} V`;
-            }
         }
         return '';
     };
 
-    const complete = isComplete({ chargeMode, chargeMin, chargeV, dischargeMode, minV, burstMs, rechargeV });
+    const complete = isComplete({ chargeMode, chargeMin, chargeV, dischargeMode, minV, burstMs });
     const settingsError = chargeError() || dischargeError();
 
     const connected = live?.ok && live?.ready;
@@ -148,7 +141,7 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
     const dischargeBody = () =>
         dischargeMode === 'exp'
             ? { mode: 'exp', minV: num(minV) }
-            : { mode: 'square', minV: num(minV), burstMs: num(burstMs), rechargeV: num(rechargeV) };
+            : { mode: 'square', minV: num(minV), burstMs: num(burstMs) };
 
     const post = async (path, body) => {
         try {
@@ -331,18 +324,9 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
                                             placeholder={`${BURST_MIN_MS}–${BURST_MAX_MS}`}
                                         />
                                     </div>
-                                    <div className="setting-item">
-                                        <span className="setting-key">Recharge to (V):</span>
-                                        <input
-                                            type="number"
-                                            className="setting-input"
-                                            value={rechargeV}
-                                            max={MAX_VOLTAGE}
-                                            step="any"
-                                            onChange={(e) => save('rechargeV', e.target.value, setRechargeV)}
-                                            placeholder="xx"
-                                        />
-                                    </div>
+                                    <p className="setting-note">
+                                        Recharges to max ({MAX_VOLTAGE} V) after pulsing.
+                                    </p>
                                 </>
                             )}
                         </>
