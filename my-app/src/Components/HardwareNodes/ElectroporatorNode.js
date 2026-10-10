@@ -1,9 +1,10 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { API_BASE } from '../../api/config';
 import NodeHeader from './NodeHeader';
 import './HardwareNode.css';
 
-const API = 'http://localhost:5001/api/electro';
+const API = `${API_BASE}/electro`;
 
 const MAX_VOLTAGE = 1400;
 const MIN_DISCHARGE_VOLT = 12;
@@ -57,7 +58,7 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
     };
 
     const refreshPorts = useCallback(() => {
-        fetch('http://localhost:5001/api/spec/ports')
+        fetch(`${API_BASE}/spec/ports`)
             .then((res) => res.json())
             .then((result) => {
                 if (result.ok) setPorts(result.ports);
