@@ -1,7 +1,6 @@
 const NODE_TYPE_NAMES = {
   peristalticPump: 'Peristaltic Pump',
   syringePump: 'Syringe Pump',
-  thermometer: 'Thermometer',
   spectrometer: 'Spectrometer',
   electroporator: 'Electroporator',
 };

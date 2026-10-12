@@ -19,8 +19,7 @@ const Sidemenu = ({
         { name: 'Peristaltic Pump', type: 'peristalticPump' },
         { name: 'Spectrometer', type: 'spectrometer' },
         { name: 'Syringe Pump', type: 'syringePump' },
-        { name: 'Electroporator', type: 'electroporator' },
-        { name: 'Thermometer', type: 'thermometer' }
+        { name: 'Electroporator', type: 'electroporator' }
     ];
 
     const onDragStart = (event, part) => {

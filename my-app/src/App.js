@@ -12,7 +12,6 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import LoadCycleDialog from './Components/LoadCycleDialog/LoadCycleDialog';
-import ThermometerNode from './Components/HardwareNodes/ThermometerNode';
 import SyringePumpNode from './Components/HardwareNodes/SyringePumpNode';
 import ElectroporatorNode from './Components/HardwareNodes/ElectroporatorNode';
 import PeristalticPumpNode from './Components/HardwareNodes/PeristalticPumpNode';
@@ -137,7 +136,6 @@ function App() {
    */
   const nodeTypes = useMemo(
     () => ({
-      thermometer: ThermometerNode,
       syringePump: SyringePumpNode,
       spectrometer: SpectrometerNode,
       electroporator: ElectroporatorNode,

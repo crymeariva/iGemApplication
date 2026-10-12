@@ -6,15 +6,12 @@ MOSMAGE (Modular Open Source Automated Genome Engineering) is a platform focused
 - Node: A hardware unit on the canvas. Nodes connect via edges to define workflow order.
 - Canvas: The React Flow workspace where cycles are built.
 
-# Hardware Nodes (Exactly 5)
+# Hardware Nodes (Exactly 4)
 ## Peristaltic Pump (peristalticPump)
 Moves fluid through tubing via rotating rollers. A hardcoded amount of steps with selectable movement (right/left), up/down movement of pump, which board (1-4) and axis (X, Y, Z, A) on respective board.
 
 ## Syringe Pump (syringePump)
 Precise volumetric dispensing. Allows users to adjust how many 'steps' for dispensing, up/down movement of pump, which board (1-4) and axis (X, Y, Z, A) on respective board.
-
-## Thermometer (thermometer)
-Temperature monitoring/setting.
 
 ## Spectrometer (spectrometer)
 Optical measurement for analysis.

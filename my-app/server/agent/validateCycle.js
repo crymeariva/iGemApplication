@@ -1,7 +1,6 @@
 const ALLOWED_TYPES = new Set([
     'peristalticPump',
     'syringePump',
-    'thermometer',
     'spectrometer',
     'electroporator',
   ]);

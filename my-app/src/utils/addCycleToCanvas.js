@@ -1,7 +1,6 @@
 const DEFAULT_NODE_LABELS = {
   peristalticPump: 'Peristaltic Pump',
   syringePump: 'Syringe Pump',
-  thermometer: 'Thermometer',
   spectrometer: 'Spectrometer',
   electroporator: 'Electroporator',
 };
