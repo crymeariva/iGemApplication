@@ -72,8 +72,8 @@ The built-in agent tries providers in a fixed order: **Gemini → OpenRouter →
 ### 1. Clone
 
 ```bash
-git clone https://github.com/iGEM-2026/iGemApplication
-cd iGemApplication/my-app
+git clone https://gitlab.igem.org/2026/software/ulethbridge/mosmage-gui.git
+cd mosmage-gui/my-app
 ```
 
 ### 2. Install
