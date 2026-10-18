@@ -207,7 +207,7 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
                         <span>
                             {live?.ok
                                 ? `${liveVal} ${metric === 'voltage' ? 'V' : 'raw'}`
-                                : live?.error || '…'}
+                                : live?.error || '...'}
                         </span>
                     </div>
                     <div className="setting-item">

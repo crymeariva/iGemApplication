@@ -130,7 +130,7 @@ const AgentMenu = ({ isOpen, nodes, edges, cycleName, onApplyCycle }) => {
                 {loading && (
                     <div className="AgentMenu__message AgentMenu__message--assistant">
                         <span className="AgentMenu__message-label">Assistant</span>
-                        <p className="AgentMenu__message-content AgentMenu__message--thinking">Thinking…</p>
+                        <p className="AgentMenu__message-content AgentMenu__message--thinking">Thinking...</p>
                     </div>
                 )}
                 <div ref={bottomRef} />
@@ -142,7 +142,7 @@ const AgentMenu = ({ isOpen, nodes, edges, cycleName, onApplyCycle }) => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Ask about lab workflows… (Enter to send, Shift+Enter for newline)"
+                    placeholder="Ask about lab workflows... (Enter to send, Shift+Enter for newline)"
                     rows={3}
                     disabled={loading}
                 />
@@ -161,7 +161,7 @@ const AgentMenu = ({ isOpen, nodes, edges, cycleName, onApplyCycle }) => {
                         aria-label="Send message"
                         disabled={loading || !input.trim()}
                     >
-                        ↑
+                        {'\u2191'}
                     </button>
                 </div>
             </form>

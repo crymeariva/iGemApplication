@@ -40,7 +40,7 @@ const Sidemenu = ({
                     aria-expanded={isPartsOpen}
                 >
                     <span>Parts Menu</span>
-                    <span className="Sidemenu__chevron">{isPartsOpen ? '▼' : '▶'}</span>
+                    <span className="Sidemenu__chevron">{isPartsOpen ? '\u25BC' : '\u25B6'}</span>
                 </button>
                 {isPartsOpen && (
                     <div className="Sidemenu__panel-content">
@@ -67,7 +67,7 @@ const Sidemenu = ({
                     aria-expanded={isOptionsOpen}
                 >
                     <span>Options</span>
-                    <span className="Sidemenu__chevron">{isOptionsOpen ? '▼' : '▶'}</span>
+                    <span className="Sidemenu__chevron">{isOptionsOpen ? '\u25BC' : '\u25B6'}</span>
                 </button>
                 {isOptionsOpen && (
                     <div className="Sidemenu__panel-content">

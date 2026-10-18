@@ -5,6 +5,17 @@ const fs = require('fs');
 const path = require('path');
 
 const ENV_PATH = path.join(__dirname, '.env');
+// Each key becomes one KEY=value line in .env.
+const KEY_PATTERN = /^[A-Za-z0-9_.-]+$/;
+
+function checkKey(name, value) {
+  if (!KEY_PATTERN.test(value)) {
+    throw Object.assign(
+      new Error(`${name} key can only contain letters, numbers, "-", "_" and "."`),
+      { status: 400 }
+    );
+  }
+}
 
 function readEnvFile() {
     if (!fs.existsSync(ENV_PATH)) return {};
@@ -39,6 +50,11 @@ function readEnvFile() {
     };
   }
   function saveKeys({ geminiApiKey, openRouterApiKey }) {
+    const gemini = typeof geminiApiKey === 'string' ? geminiApiKey.trim() : '';
+    const openRouter = typeof openRouterApiKey === 'string' ? openRouterApiKey.trim() : '';
+    if (gemini) checkKey('Gemini', gemini);
+    if (openRouter) checkKey('OpenRouter', openRouter);
+
     const map = readEnvFile();
     if (typeof geminiApiKey === 'string') {
       const v = geminiApiKey.trim();

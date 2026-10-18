@@ -162,7 +162,7 @@ export default function AgentSettingsDialog({ open, onClose }) {
 
           <div className="agent-settings__actions">
             <button type="submit" className="btn-secondary" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>

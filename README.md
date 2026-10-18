@@ -55,7 +55,7 @@ The built-in agent tries providers in a fixed order: **Gemini → OpenRouter →
 | `my-app/server/` | Express backend, SQLite database, AI agent |
 | `my-app/server/context/` | Reference material the AI agent reads |
 | `ArduinoScript/MotorScript/` | Pump firmware (I2C) |
-| `ArduinoScript/SpecFile` | Spectrophotometer firmware (serial) |
+| `ArduinoScript/SpecFile/` | Spectrophotometer firmware (serial) |
 | `PiScript/` | Legacy Raspberry Pi Python scripts, superseded by the Node.js backend |
 
 ---
@@ -65,7 +65,7 @@ The built-in agent tries providers in a fixed order: **Gemini → OpenRouter →
 ### Prerequisites
 
 - Node.js and npm
-- Raspberry Pi 4 with I2C enabled (the backend needs the Pi's I2C bus and GPIO to start)
+- Raspberry Pi 4 with I2C enabled, to drive the pumps. On any other machine the backend still runs, but pump commands return an error.
 - Arduino IDE (for firmware uploads)
 - Optional, for the AI agent: a Gemini or OpenRouter API key, or a local [Ollama](https://ollama.com) install
 
@@ -140,7 +140,7 @@ The same file accepts these optional settings:
 
 ## License
 
-MIT License.
+Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Acknowledgements
 

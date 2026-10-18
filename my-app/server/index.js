@@ -1,6 +1,4 @@
 const express = require("express");
-const i2c = require("i2c-bus");
-const { Gpio } = require("onoff");
 const db = require("./database");
 const spec = require("./spectrometer");
 const { chat, listModels } = require("./llm");
@@ -28,8 +26,6 @@ const MOSMAGE_CONTEXT = fs.readFileSync(
   'utf-8'
 );
 
-// Open I2C bus (bus 1 on Raspberry Pi)
-const bus = i2c.openSync(1);
 const SLAVE_ADDRESS = 0x04;
 const TCA_ADDRESS = 0x70;  // I2C multiplexer
 
@@ -40,11 +36,24 @@ const TCA_ADDRESS = 0x70;  // I2C multiplexer
 // these originally were 17,27,22 for pi3, Changes in PI will break here
 // Current Pi (BCM 17/27/22): 529, 539, 534
 // was 588, 598, 593 on Pi5
-const pins = [
-  new Gpio(529, "out"),
-  new Gpio(539, "out"),
-  new Gpio(534, "out"),
-];
+const GPIO_PINS = [529, 539, 534];
+
+// I2C bus 1 and the GPIO pins only exist on the Pi. Anywhere else the server still
+// starts, and the motor routes answer 503 instead of crashing.
+let bus = null;
+let pins = [];
+try {
+  const i2c = require("i2c-bus");
+  const { Gpio } = require("onoff");
+  bus = i2c.openSync(1);
+  pins = GPIO_PINS.map((pin) => new Gpio(pin, "out"));
+} catch (err) {
+  bus = null;
+  pins = [];
+  console.warn(`Motor hardware unavailable, motor commands disabled: ${err.message}`);
+}
+
+const NO_MOTOR_HARDWARE = "Motor hardware (I2C/GPIO) is not available on this machine";
 
 const MOTOR_POLL_MS = 100;
 const MOTOR_BUSY_GRACE_MS = 3000; // wait up to this long to see "busy" after send
@@ -117,6 +126,8 @@ async function waitUntilBoardFinished(board) {
 }
 
 app.post("/api/instr", async (req, res) => {
+  if (!bus) return res.status(503).json({ error: NO_MOTOR_HARDWARE });
+
   const { axis, compInstr, board } = req.body;
 
   const direction = compInstr?.Direction?.toLowerCase();
@@ -171,6 +182,8 @@ app.post("/api/instr", async (req, res) => {
 
 // POST /api/cancel — Halts hardware instructions.
 app.post("/api/cancel", (req, res) => {
+  if (!bus) return res.status(503).json({ error: NO_MOTOR_HARDWARE });
+
   const { board } = req.body ?? {};
 
   const boards = Number.isInteger(board) && board >= 1 && board <= 4
@@ -457,8 +470,8 @@ app.post('/api/agent/keys', (req, res) => {
     const status = saveKeys({ geminiApiKey, openRouterApiKey });
     res.json(status);
   } catch (err) {
-    console.error('Save agent keys error:', err);
-    res.status(500).json({ error: err.message || 'Failed to save keys' });
+    if (err.status !== 400) console.error('Save agent keys error:', err);
+    res.status(err.status || 500).json({ error: err.message || 'Failed to save keys' });
   }
 });
 

@@ -55,7 +55,7 @@ export function useCycleSave({
           return;
         }
 
-        const label = activeCycleName ? `“${activeCycleName}”` : `#${activeCycleId}`;
+        const label = activeCycleName ? `"${activeCycleName}"` : `#${activeCycleId}`;
         alert(`Cycle ${label} updated`);
         return;
       } catch (e) {
