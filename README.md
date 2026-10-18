@@ -36,7 +36,7 @@ Cycles are run step by step from the Control Interface. Each node is sent to the
 | Peristaltic pump | `peristalticPump` | I2C, via a TCA9548A multiplexer |
 | Syringe pumps | `syringePump` | I2C, via a TCA9548A multiplexer |
 | Spectrophotometer | `spectrometer` | USB serial, 115200 baud |
-| Electroporator | `electroporator` | USB serial, 115200 baud (in development) |
+| Electroporator | `electroporator` | USB serial, 115200 baud (prototype; needs hardware testing; square wave pending) |
 | Media exchange unit | — | Not yet in the interface |
 
 The pump boards share I2C address `0x04`. The backend selects a board through the TCA9548A (`0x70`) and three GPIO pins, then sends the move and polls until the motor is idle. Serial devices are chosen from a port dropdown on their node.

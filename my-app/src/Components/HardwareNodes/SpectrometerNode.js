@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '../../api/config';
 import { Handle, Position } from '@xyflow/react';
+import NodeHeader from './NodeHeader';
 import './HardwareNode.css';
 
 const SpectrometerNode = ({ data, isConnectable, selected }) => {
@@ -12,6 +13,9 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
     const [ports, setPorts] = useState([]);
     const [live, setLive] = useState(null);
     const [message, setMessage] = useState('');
+    const [expanded, setExpanded] = useState(
+        () => !(data.settings?.port && data.settings?.target && data.settings?.durationSec)
+    );
 
     useEffect(() => {
         setMetric(data.settings?.metric || 'raw');
@@ -197,9 +201,11 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
             />
 
             <div className="hardware-node-content">
-                <div className="hardware-node-header">
-                    {data.label || 'Spectrometer'}
-                </div>
+                <NodeHeader
+                    label={data.label || 'Spectrometer'}
+                    expanded={expanded}
+                    onToggle={() => setExpanded((v) => !v)}
+                />
 
                 <div className="hardware-node-settings">
                     <div className="setting-item">
@@ -210,69 +216,74 @@ const SpectrometerNode = ({ data, isConnectable, selected }) => {
                                 : live?.error || '...'}
                         </span>
                     </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Port:</span>
-                        <select
-                            className="setting-select"
-                            value={port}
-                            onChange={handlePortChange}
-                            onFocus={refreshPorts}
-                        >
-                            <option value="">Select</option>
-                            {ports.map((p) => (
-                                <option key={p.path} value={p.path}>
-                                    {p.path}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Metric (Raw, Voltage):</span>
-                        <select
-                            className="setting-select"
-                            value={metric}
-                            onChange={handleMetricChange}
-                        >
-                            <option value="raw">Raw</option>
-                            <option value="voltage">Voltage</option>
-                        </select>
-                    </div>
 
-                    <div className="setting-item">
-                        <span className="setting-key">Target:</span>
-                        <input
-                            type="number"
-                            className="setting-input"
-                            value={target}
-                            step="any"
-                            onChange={handleTargetChange}
-                            placeholder="xx"
-                        />
-                    </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Duration (s):</span>
-                        <input
-                            type="number"
-                            className="setting-input"
-                            value={durationSec}
-                            min={0.1}
-                            step={0.1}
-                            onChange={handleDurationChange}
-                            placeholder="xx"
-                        />
-                    </div>
-                    <div className="setting-item">
-                        <span className="setting-key">Max Wait (min):</span>
-                        <input
-                            type="number"
-                            className="setting-input"
-                            value={timeoutMin}
-                            min={0.1}
-                            step="any"
-                            onChange={handleTimeoutChange}
-                            placeholder="No limit"
-                        />
-                    </div>
+                    {expanded && (
+                        <>
+                            <div className="setting-item">
+                                <span className="setting-key">Port:</span>
+                                <select
+                                    className="setting-select"
+                                    value={port}
+                                    onChange={handlePortChange}
+                                    onFocus={refreshPorts}
+                                >
+                                    <option value="">Select</option>
+                                    {ports.map((p) => (
+                                        <option key={p.path} value={p.path}>
+                                            {p.path}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="setting-item">
+                                <span className="setting-key">Metric (Raw, Voltage):</span>
+                                <select
+                                    className="setting-select"
+                                    value={metric}
+                                    onChange={handleMetricChange}
+                                >
+                                    <option value="raw">Raw</option>
+                                    <option value="voltage">Voltage</option>
+                                </select>
+                            </div>
+
+                            <div className="setting-item">
+                                <span className="setting-key">Target:</span>
+                                <input
+                                    type="number"
+                                    className="setting-input"
+                                    value={target}
+                                    step="any"
+                                    onChange={handleTargetChange}
+                                    placeholder="xx"
+                                />
+                            </div>
+                            <div className="setting-item">
+                                <span className="setting-key">Duration (s):</span>
+                                <input
+                                    type="number"
+                                    className="setting-input"
+                                    value={durationSec}
+                                    min={0.1}
+                                    step={0.1}
+                                    onChange={handleDurationChange}
+                                    placeholder="xx"
+                                />
+                            </div>
+                            <div className="setting-item">
+                                <span className="setting-key">Max Wait (min):</span>
+                                <input
+                                    type="number"
+                                    className="setting-input"
+                                    value={timeoutMin}
+                                    min={0.1}
+                                    step="any"
+                                    onChange={handleTimeoutChange}
+                                    placeholder="No limit"
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 

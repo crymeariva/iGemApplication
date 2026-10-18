@@ -1,6 +1,7 @@
 const express = require("express");
 const db = require("./database");
 const spec = require("./spectrometer");
+const electro = require("./electroporator");
 const { chat, listModels } = require("./llm");
 
 const app = express();
@@ -78,6 +79,7 @@ function writeBits(bits) {
 }
 
 function selectBoard(board) {
+  if (!bus) throw new Error("Motor hardware (I2C) not available on this machine");
   const bits = to3BitArray(board);
   writeBits(bits);
   bus.writeByteSync(TCA_ADDRESS, 0x00, 1 << board);
@@ -318,6 +320,61 @@ app.post("/api/spec/wait", async (req, res) => {
 app.post("/api/spec/cancel", (req, res) => {
   const cancelled = spec.cancelWait(req.body?.port);
   res.json({ ok: true, cancelled });
+});
+
+/**
+ * Electroporator (serial). Status is polled by the node; actions switch the relay on/off around each phase.
+ * The board drains the capacitor after every discharge and on every stop.
+ */
+app.get("/api/electro/status", (req, res) => {
+  res.json(electro.getStatus(req.query.port));
+});
+
+function electroAction(fn, okMessage, { stopOnDisconnect = false } = {}) {
+  return async (req, res) => {
+    const { port, ...settings } = req.body ?? {};
+    if (!port) {
+      return res.status(400).json({ ok: false, error: "Select a port" });
+    }
+
+    // Tab closed or refreshed mid-run: shut the unit off rather than leave it running unattended.
+    if (stopOnDisconnect) {
+      res.on("close", () => {
+        if (!res.writableEnded) {
+          console.log(`Electroporator run dropped: client disconnected (${port})`);
+          electro.stop(port);
+        }
+      });
+    }
+
+    try {
+      const result = await fn(port, settings);
+      if (res.destroyed) return;
+      res.json({ ok: true, message: typeof result === "string" ? result : okMessage });
+    } catch (err) {
+      if (res.destroyed) return;
+      // Non-2xx so a cycle run treats a stopped step as stopped, not finished.
+      if (err.cancelled) {
+        return res.status(499).json({ ok: false, cancelled: true, error: "Stopped" });
+      }
+      console.error(`Electroporator ${req.path} failed on ${port}:`, err.message);
+      res.status(err.badRequest ? 400 : 500).json({ ok: false, error: err.message });
+    }
+  };
+}
+
+app.post("/api/electro/charge", electroAction(electro.charge, "Charging"));
+app.post("/api/electro/discharge", electroAction(electro.discharge, "Discharging"));
+app.post("/api/electro/run", electroAction(electro.run, "Run complete", { stopOnDisconnect: true }));
+
+// Port is optional here: without one, every open electroporator is stopped.
+app.post("/api/electro/stop", async (req, res) => {
+  try {
+    const stopped = await electro.stop(req.body?.port);
+    res.json({ ok: true, message: stopped ? "Stopped, draining capacitor" : "Nothing to stop" });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 /**
@@ -698,7 +755,14 @@ if (fs.existsSync(BUILD_DIR)) {
   });
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, (err) => {
+  if (err) {
+    console.error(`Server failed to start on port ${PORT}: ${err.message}`);
+    if (err.code === "EADDRINUSE") {
+      console.error("Another server is already running on this port. Stop it first.");
+    }
+    process.exit(1);
+  }
   console.log(`Server running on port ${PORT}`);
   if (fs.existsSync(BUILD_DIR)) {
     console.log(`Serving frontend from ${BUILD_DIR} at http://localhost:${PORT}`);
