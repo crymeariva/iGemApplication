@@ -4,7 +4,9 @@ const { ReadlineParser } = require('@serialport/parser-readline');
 const COMMAND_TIMEOUT_MS = 2000;
 // Ceiling for one charge or discharge phase; the firmware should also enforce its own.
 const PHASE_TIMEOUT_MS = 30 * 60 * 1000;
-const DONE_LINES = ['CHARGE_DONE', 'DISCHARGE_DONE', 'DISCHARGE_DONE_AUTOCHARGE'];
+// Lines that end a phase. The board is idle (and the relay can go off) after each.
+const DONE_LINES = ['CHARGE_DONE', 'DISCHARGE_DONE', 'DRAIN_DONE', 'DRAIN_TIMEOUT'];
+const DRAIN_WARNING = 'Capacitor did not fully drain; treat it as charged';
 
 const boards = {};
 
@@ -25,6 +27,7 @@ function ensureBoard(path) {
         phase: 'idle',
         voltage: null,
         lastError: null,
+        warning: null,
         pending: null,
         queue: Promise.resolve(),
         waiters: new Set(),
@@ -72,6 +75,12 @@ function handleLine(board, line) {
         board.powered = false;
         board.phase = 'idle';
         board.lastError = null;
+        board.warning = null;
+        return;
+    }
+
+    if (line === 'DRAINING') {
+        board.phase = 'draining';
         return;
     }
 
@@ -92,11 +101,12 @@ function handleLine(board, line) {
 
     if (DONE_LINES.includes(line)) {
         console.log(`Electroporator ${board.path}: ${line}`);
-        // Square-wave discharge hands straight over to charging on the board.
-        board.phase = line === 'DISCHARGE_DONE_AUTOCHARGE' ? 'charging' : 'idle';
+        board.phase = 'idle';
+        if (line === 'DRAIN_TIMEOUT') board.warning = DRAIN_WARNING;
+        else if (line !== 'CHARGE_DONE') board.warning = null;
         for (const waiter of [...board.waiters]) waiter.onLine(line);
         // Relay is only on while a phase is active.
-        if (board.phase === 'idle') powerOff(board);
+        powerOff(board);
     }
 }
 
@@ -184,14 +194,17 @@ function chargeCommand({ mode, chargeMs, chargeV } = {}) {
     return `CHARGE_TIME ${ms}`;
 }
 
-function dischargeCommand({ mode, minV, burstMs } = {}) {
+// Range checks live in the firmware, which replies ERR to anything out of range.
+function dischargeCommand({ mode, minV, burstMs, timeOnSec } = {}) {
+    if (mode === 'square') {
+        const burst = Math.round(Number(burstMs));
+        const timeOn = Math.round(Number(timeOnSec) * 1000);
+        if (!(burst > 0)) throw badRequest('burstMs must be a positive number');
+        if (!(timeOn > 0)) throw badRequest('timeOnSec must be a positive number');
+        return `DISCHARGE_SQUARE ${burst} ${timeOn}`;
+    }
     const v = Number(minV);
     if (!(v > 0)) throw badRequest('minV must be a positive number');
-    if (mode === 'square') {
-        const ms = Math.round(Number(burstMs));
-        if (!(ms > 0)) throw badRequest('burstMs must be a positive number');
-        return `DISCHARGE_SQUARE ${ms} ${v}`;
-    }
     return `DISCHARGE_EXP ${v}`;
 }
 
@@ -207,6 +220,7 @@ function getStatus(path) {
         powered: board.powered,
         phase: board.phase,
         voltage: board.voltage,
+        warning: board.warning,
     };
 }
 
@@ -233,9 +247,9 @@ async function discharge(path, settings) {
 }
 
 /**
- * Full sequence: charge, wait for CHARGE_DONE, discharge, wait for the discharge to finish
- * (for square wave, that includes the board's automatic recharge to max).
- * Any failure (error, timeout, stop, disconnect) shuts everything off.
+ * Full sequence: charge, wait for CHARGE_DONE, discharge, wait for DISCHARGE_DONE.
+ * The board drains the capacitor before DISCHARGE_DONE, so a finished run leaves it empty.
+ * Any failure (error, timeout, stop, disconnect) stops the board, which also drains.
  */
 async function run(path, { charge: chargeSettings, discharge: dischargeSettings } = {}) {
     // Build both commands first so bad settings fail before anything switches on.
@@ -248,12 +262,9 @@ async function run(path, { charge: chargeSettings, discharge: dischargeSettings 
         await startPhase(board, chargeCmd, 'charging');
         await waitForDone(board, ['CHARGE_DONE']);
         await startPhase(board, dischargeCmd, 'discharging');
-        const done = await waitForDone(board, ['DISCHARGE_DONE', 'DISCHARGE_DONE_AUTOCHARGE']);
-        if (done === 'DISCHARGE_DONE') return 'Run complete';
-
-        // Square wave recharges to max on its own; the step isn't done until that finishes.
-        await waitForDone(board, ['CHARGE_DONE']);
-        return 'Run complete, recharged to max';
+        const done = await waitForDone(board, ['DISCHARGE_DONE', 'DRAIN_TIMEOUT']);
+        if (done === 'DRAIN_TIMEOUT') throw new Error(DRAIN_WARNING);
+        return 'Run complete, capacitor drained';
     } catch (err) {
         // A cancelled run was ended by stop(), which already shut everything off.
         if (!err.cancelled) await stop(path);
@@ -263,15 +274,25 @@ async function run(path, { charge: chargeSettings, discharge: dischargeSettings 
 
 /**
  * Stops one board, or every open board when no path is given.
+ * The board cuts the relay and drains; status shows 'draining' until DRAIN_DONE.
  */
 async function stop(path) {
     const targets = path ? [boards[path]].filter(Boolean) : Object.values(boards);
 
     for (const board of targets) {
         failWaiters(board, Object.assign(new Error('Electroporator stopped'), { cancelled: true }));
-        board.phase = 'idle';
-        if (!board.ready) continue;
-        await send(board, 'STOP').catch(() => {});
+        // A board that isn't ready has just reset, which leaves everything off.
+        if (!board.ready) {
+            board.phase = 'idle';
+            continue;
+        }
+        try {
+            await send(board, 'STOP');
+            board.phase = 'draining';
+        } catch (err) {
+            console.error(`Electroporator STOP failed on ${board.path}:`, err.message);
+            board.phase = 'idle';
+        }
         await powerOff(board);
     }
 

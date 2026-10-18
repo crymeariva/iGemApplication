@@ -2,6 +2,10 @@ import {
   periRotationsToSteps,
   syringeMlToSteps,
 } from '../pumpCalibration';
+import {
+  isComplete as electroComplete,
+  settingsError as electroSettingsError,
+} from './electroporator';
 
 export const RUNNABLE_TYPES = new Set(['syringePump', 'peristalticPump', 'spectrometer', 'electroporator']);
 
@@ -118,6 +122,14 @@ export function validateRunNodes(order) {
           return `Max wait on "${label}" must be longer than its averaging duration.`;
         }
       }
+      continue;
+    }
+
+    if (node.type === 'electroporator') {
+      if (!settings.port) return `Select a port on "${label}".`;
+      if (!electroComplete(settings)) return `Missing settings on "${label}".`;
+      const error = electroSettingsError(settings);
+      if (error) return `${error} on "${label}".`;
       continue;
     }
 

@@ -321,6 +321,7 @@ app.post("/api/spec/cancel", (req, res) => {
 
 /**
  * Electroporator (serial). Status is polled by the node; actions switch the relay on/off around each phase.
+ * The board drains the capacitor after every discharge and on every stop.
  */
 app.get("/api/electro/status", (req, res) => {
   res.json(electro.getStatus(req.query.port));
@@ -349,8 +350,9 @@ function electroAction(fn, okMessage, { stopOnDisconnect = false } = {}) {
       res.json({ ok: true, message: typeof result === "string" ? result : okMessage });
     } catch (err) {
       if (res.destroyed) return;
+      // Non-2xx so a cycle run treats a stopped step as stopped, not finished.
       if (err.cancelled) {
-        return res.json({ ok: false, cancelled: true, error: "Stopped" });
+        return res.status(499).json({ ok: false, cancelled: true, error: "Stopped" });
       }
       console.error(`Electroporator ${req.path} failed on ${port}:`, err.message);
       res.status(err.badRequest ? 400 : 500).json({ ok: false, error: err.message });
@@ -366,7 +368,7 @@ app.post("/api/electro/run", electroAction(electro.run, "Run complete", { stopOn
 app.post("/api/electro/stop", async (req, res) => {
   try {
     const stopped = await electro.stop(req.body?.port);
-    res.json({ ok: true, message: stopped ? "Stopped" : "Nothing to stop" });
+    res.json({ ok: true, message: stopped ? "Stopped, draining capacitor" : "Nothing to stop" });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

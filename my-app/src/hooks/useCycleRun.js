@@ -5,6 +5,7 @@ import {
   syringeMlToSteps,
 } from '../pumpCalibration';
 import { getNodeOrder, validateRunNodes } from '../utils/cycleRun';
+import { chargeBody, describeRun, dischargeBody } from '../utils/electroporator';
 import {
   abortableSleep,
   formatCountdown,
@@ -49,6 +50,18 @@ async function executeNode(node) {
     });
   }
 
+  if (node.type === 'electroporator') {
+    return fetch(`${API_BASE}/electro/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        port: settings.port,
+        charge: chargeBody(settings),
+        discharge: dischargeBody(settings),
+      }),
+    });
+  }
+
   return fetch(`${API_BASE}/instr`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -80,6 +93,11 @@ export function useCycleRun({ nodes, edges, cycleCount }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
+      fetch(`${API_BASE}/electro/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
     ]);
   }, []);
 
@@ -104,6 +122,20 @@ export function useCycleRun({ nodes, edges, cycleCount }) {
     }
 
     const totalCycles = Math.max(1, Number(cycleCount) || 1);
+
+    // High voltage: the user confirms exactly what will fire before anything starts.
+    const electroNodes = result.order.filter((n) => n.type === 'electroporator');
+    if (electroNodes.length > 0) {
+      const lines = electroNodes.map((n) => {
+        const s = n.data?.settings ?? {};
+        return `• ${n.data?.label ?? n.id} (${s.port}): ${describeRun(s)}`;
+      });
+      const confirmed = window.confirm(
+        `This run fires the electroporator ${totalCycles > 1 ? `in each of ${totalCycles} cycles` : 'once'}:\n\n` +
+          `${lines.join('\n')}\n\nContinue?`
+      );
+      if (!confirmed) return;
+    }
     const stepTotal = result.order.length;
 
     cancelRunRef.current = false;
@@ -131,7 +163,9 @@ export function useCycleRun({ nodes, edges, cycleCount }) {
             cycle: c,
             cycleTotal: totalCycles,
             label: node.data?.label ?? node.id,
-            board: settings.boardVal ?? (node.type === 'spectrometer' ? 'spec' : '?'),
+            board:
+              settings.boardVal ??
+              (node.type === 'spectrometer' ? 'spec' : node.type === 'electroporator' ? 'elec' : '?'),
           });
 
           const res = await executeNode(node);

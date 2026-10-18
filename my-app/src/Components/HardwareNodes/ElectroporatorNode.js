@@ -1,34 +1,35 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { API_BASE } from '../../api/config';
+import {
+    BURST_MAX_MS,
+    BURST_MIN_MS,
+    MAX_VOLTAGE,
+    MIN_DISCHARGE_VOLT,
+    TIME_ON_MAX_S,
+    TIME_ON_MIN_S,
+    chargeBody,
+    dischargeBody,
+    isComplete,
+    settingsError as getSettingsError,
+    withDefaults,
+} from '../../utils/electroporator';
 import NodeHeader from './NodeHeader';
 import './HardwareNode.css';
 
 const API = `${API_BASE}/electro`;
-
-const MAX_VOLTAGE = 1400;
-const MIN_DISCHARGE_VOLT = 12;
-const BURST_MIN_MS = 10;
-const BURST_MAX_MS = 50;
-const DEFAULT_CHARGE_MIN = 10;
 const ARM_TIMEOUT_MS = 60 * 1000;
 
-const filled = (v) => v !== '' && v !== null && v !== undefined;
-const num = (v) => (filled(v) ? Number(v) : NaN);
-
-const isComplete = (s) =>
-    (s.chargeMode === 'volt' ? filled(s.chargeV) : filled(s.chargeMin ?? DEFAULT_CHARGE_MIN)) &&
-    filled(s.minV) &&
-    ((s.dischargeMode || 'exp') === 'exp' || filled(s.burstMs));
-
 const ElectroporatorNode = ({ data, isConnectable, selected }) => {
+    const initial = withDefaults(data.settings);
     const [port, setPort] = useState(data.settings?.port || '');
-    const [chargeMode, setChargeMode] = useState(data.settings?.chargeMode || 'time');
-    const [chargeMin, setChargeMin] = useState(data.settings?.chargeMin ?? DEFAULT_CHARGE_MIN);
-    const [chargeV, setChargeV] = useState(data.settings?.chargeV ?? '');
-    const [dischargeMode, setDischargeMode] = useState(data.settings?.dischargeMode || 'exp');
-    const [minV, setMinV] = useState(data.settings?.minV ?? '');
-    const [burstMs, setBurstMs] = useState(data.settings?.burstMs ?? '');
+    const [chargeMode, setChargeMode] = useState(initial.chargeMode);
+    const [chargeMin, setChargeMin] = useState(initial.chargeMin);
+    const [chargeV, setChargeV] = useState(initial.chargeV);
+    const [dischargeMode, setDischargeMode] = useState(initial.dischargeMode);
+    const [minV, setMinV] = useState(initial.minV);
+    const [burstMs, setBurstMs] = useState(initial.burstMs);
+    const [timeOnSec, setTimeOnSec] = useState(initial.timeOnSec);
     const [ports, setPorts] = useState([]);
     const [live, setLive] = useState(null);
     const [message, setMessage] = useState('');
@@ -36,14 +37,15 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
     const [expanded, setExpanded] = useState(() => !isComplete(data.settings || {}));
 
     useEffect(() => {
-        const s = data.settings || {};
-        setPort(s.port ?? '');
-        setChargeMode(s.chargeMode || 'time');
-        setChargeMin(s.chargeMin ?? DEFAULT_CHARGE_MIN);
-        setChargeV(s.chargeV ?? '');
-        setDischargeMode(s.dischargeMode || 'exp');
-        setMinV(s.minV ?? '');
-        setBurstMs(s.burstMs ?? '');
+        const s = withDefaults(data.settings);
+        setPort(data.settings?.port ?? '');
+        setChargeMode(s.chargeMode);
+        setChargeMin(s.chargeMin);
+        setChargeV(s.chargeV);
+        setDischargeMode(s.dischargeMode);
+        setMinV(s.minV);
+        setBurstMs(s.burstMs);
+        setTimeOnSec(s.timeOnSec);
     }, [data.settings]);
 
     const save = (key, value, setter) => {
@@ -73,7 +75,7 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
         return () => clearTimeout(id);
     }, [armed]);
 
-    // Expected shape: { ok, ready, powered, phase, voltage, error }
+    // Expected shape: { ok, ready, powered, phase, voltage, warning, error }
     useEffect(() => {
         if (!port) {
             setLive({ ok: false, error: 'Select a port' });
@@ -100,48 +102,15 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
         };
     }, [port]);
 
-    // Empty fields block arming but don't show an error; only bad values do.
-    const chargeError = () => {
-        if (chargeMode === 'time') {
-            if (filled(chargeMin) && !(num(chargeMin) > 0)) return 'Charge time must be above 0';
-        } else if (filled(chargeV)) {
-            const v = num(chargeV);
-            if (!(v > 0 && v <= MAX_VOLTAGE)) return `Charge voltage must be 1–${MAX_VOLTAGE} V`;
-        }
-        return '';
-    };
-
-    const dischargeError = () => {
-        const v = num(minV);
-        if (filled(minV) && !(v >= MIN_DISCHARGE_VOLT && v <= MAX_VOLTAGE)) {
-            return `Min voltage must be ${MIN_DISCHARGE_VOLT}–${MAX_VOLTAGE} V`;
-        }
-        if (dischargeMode === 'square') {
-            const b = num(burstMs);
-            if (filled(burstMs) && !(b >= BURST_MIN_MS && b <= BURST_MAX_MS)) {
-                return `Burst must be ${BURST_MIN_MS}–${BURST_MAX_MS} ms`;
-            }
-        }
-        return '';
-    };
-
-    const complete = isComplete({ chargeMode, chargeMin, chargeV, dischargeMode, minV, burstMs });
-    const settingsError = chargeError() || dischargeError();
+    const settings = { chargeMode, chargeMin, chargeV, dischargeMode, minV, burstMs, timeOnSec };
+    // Empty fields block arming without an error message; only bad values show one.
+    const complete = isComplete(settings);
+    const settingsError = getSettingsError(settings);
 
     const connected = live?.ok && live?.ready;
     const powered = connected && live?.powered;
     const busy = connected && live?.phase && live.phase !== 'idle';
     const canArm = connected && !busy && !settingsError && complete;
-
-    const chargeBody = () =>
-        chargeMode === 'time'
-            ? { mode: 'time', chargeMs: Math.round(num(chargeMin) * 60 * 1000) }
-            : { mode: 'volt', chargeV: num(chargeV) };
-
-    const dischargeBody = () =>
-        dischargeMode === 'exp'
-            ? { mode: 'exp', minV: num(minV) }
-            : { mode: 'square', minV: num(minV), burstMs: num(burstMs) };
 
     const post = async (path, body) => {
         try {
@@ -160,17 +129,17 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
 
     const CallRun = () => {
         setArmed(false);
-        return post('run', { charge: chargeBody(), discharge: dischargeBody() });
+        return post('run', { charge: chargeBody(settings), discharge: dischargeBody(settings) });
     };
 
     const CallCharge = () => {
         setArmed(false);
-        return post('charge', chargeBody());
+        return post('charge', chargeBody(settings));
     };
 
     const CallDischarge = () => {
         setArmed(false);
-        return post('discharge', dischargeBody());
+        return post('discharge', dischargeBody(settings));
     };
 
     // Never gated on the checkbox or settings.
@@ -295,21 +264,21 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
                                 </div>
                             </div>
 
-                            <div className="setting-item">
-                                <span className="setting-key">Min voltage (V):</span>
-                                <input
-                                    type="number"
-                                    className="setting-input"
-                                    value={minV}
-                                    min={MIN_DISCHARGE_VOLT}
-                                    max={MAX_VOLTAGE}
-                                    step="any"
-                                    onChange={(e) => save('minV', e.target.value, setMinV)}
-                                    placeholder={`≥ ${MIN_DISCHARGE_VOLT}`}
-                                />
-                            </div>
-
-                            {dischargeMode === 'square' && (
+                            {dischargeMode === 'exp' ? (
+                                <div className="setting-item">
+                                    <span className="setting-key">Min voltage (V):</span>
+                                    <input
+                                        type="number"
+                                        className="setting-input"
+                                        value={minV}
+                                        min={MIN_DISCHARGE_VOLT}
+                                        max={MAX_VOLTAGE}
+                                        step="any"
+                                        onChange={(e) => save('minV', e.target.value, setMinV)}
+                                        placeholder={`≥ ${MIN_DISCHARGE_VOLT}`}
+                                    />
+                                </div>
+                            ) : (
                                 <>
                                     <div className="setting-item">
                                         <span className="setting-key">Burst length (ms):</span>
@@ -324,11 +293,25 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
                                             placeholder={`${BURST_MIN_MS}–${BURST_MAX_MS}`}
                                         />
                                     </div>
+                                    <div className="setting-item">
+                                        <span className="setting-key">Time on (s):</span>
+                                        <input
+                                            type="number"
+                                            className="setting-input"
+                                            value={timeOnSec}
+                                            min={TIME_ON_MIN_S}
+                                            max={TIME_ON_MAX_S}
+                                            step="any"
+                                            onChange={(e) => save('timeOnSec', e.target.value, setTimeOnSec)}
+                                            placeholder={`${TIME_ON_MIN_S}–${TIME_ON_MAX_S}`}
+                                        />
+                                    </div>
                                     <p className="setting-note">
-                                        Recharges to max ({MAX_VOLTAGE} V) after pulsing.
+                                        Recharges to max ({MAX_VOLTAGE} V) between bursts.
                                     </p>
                                 </>
                             )}
+                            <p className="setting-note">Drains the capacitor after every run and on Cancel.</p>
                         </>
                     )}
 
@@ -365,6 +348,7 @@ const ElectroporatorNode = ({ data, isConnectable, selected }) => {
                 </button>
             </div>
 
+            {live?.warning && <p className="node-message node-message--error">{live.warning}</p>}
             {settingsError ? (
                 <p className="node-message node-message--error">{settingsError}</p>
             ) : (
